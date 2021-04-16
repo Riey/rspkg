@@ -4,15 +4,13 @@ mod error;
 mod fetch;
 mod project;
 
-pub use serde;
-pub use serde_json;
 pub use crate::build::{BuildArtifacts, BuildEnvironment};
 pub use crate::error::{Error, Result};
 #[cfg(feature = "fetch")]
 pub use crate::fetch::CratesIoRegistry;
-pub use crate::project::{
-    LocalProject, LocalProjectBuilder, Project, RspkgProject,
-};
+pub use crate::project::{LocalProject, LocalProjectBuilder, Project, RspkgProject};
+pub use serde;
+pub use serde_json;
 
 use serde::{Deserialize, Serialize};
 use std::process::{Command, ExitStatus};

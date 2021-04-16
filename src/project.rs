@@ -2,8 +2,8 @@ use crate::{
     BuildArtifacts, BuildEnvironment, CheckResult, CrateType, Edition, Result, RustcFlags,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{fmt::Display, path::PathBuf};
 use std::process::{Command, Stdio};
+use std::{fmt::Display, path::PathBuf};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum Project {
