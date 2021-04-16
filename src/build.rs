@@ -31,6 +31,7 @@ impl BuildEnvironment {
     }
 
     pub fn add_project(&mut self, project: Project) {
+        eprintln!("Add project: {}", project.id());
         self.projects.insert(project.id().into(), project);
     }
 

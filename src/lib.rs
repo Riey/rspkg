@@ -4,6 +4,8 @@ mod error;
 mod fetch;
 mod project;
 
+pub use serde;
+pub use serde_json;
 pub use crate::build::{BuildArtifacts, BuildEnvironment};
 pub use crate::error::{Error, Result};
 #[cfg(feature = "fetch")]

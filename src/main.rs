@@ -1,10 +1,9 @@
 use rspkg::{
-    BuildEnvironment, CheckResult, CrateType, CratesIoRegistry, LocalProjectBuilder, Profile,
-    Result, RspkgProject,
+    BuildEnvironment, CrateType, CratesIoRegistry, Edition, LocalProjectBuilder, Profile, Result,
+    RspkgProject,
 };
 use std::env;
 use std::path::PathBuf;
-use std::process::Command;
 
 fn main() -> Result<()> {
     let arg = env::args().nth(1).expect("No argument");
@@ -24,7 +23,10 @@ fn main() -> Result<()> {
     crates_io.fetch_lib(
         &tmp_dir,
         "lib.rs",
-        LocalProjectBuilder::default().dependency("unicode-xid"),
+        LocalProjectBuilder::default()
+            .dependency("unicode-xid")
+            .cfg("use_proc_macro")
+            .feature("proc-macro"),
         "proc-macro2",
         "1.0.26",
         &mut manifest_env,
@@ -32,7 +34,10 @@ fn main() -> Result<()> {
     crates_io.fetch_lib(
         &tmp_dir,
         "lib.rs",
-        LocalProjectBuilder::default().dependency("proc-macro2"),
+        LocalProjectBuilder::default()
+            .dependency("proc-macro2")
+            .feature("default")
+            .feature("proc-macro"),
         "quote",
         "1.0.9",
         &mut manifest_env,
@@ -41,6 +46,7 @@ fn main() -> Result<()> {
         &tmp_dir,
         "lib.rs",
         LocalProjectBuilder::default()
+            .features(&["derive", "parsing", "printing", "clone-impls", "proc-macro"])
             .dependency("proc-macro2")
             .dependency("unicode-xid")
             .dependency("quote"),
@@ -55,7 +61,8 @@ fn main() -> Result<()> {
             .crate_type(CrateType::ProcMacro)
             .dependency("proc-macro2")
             .dependency("syn")
-            .dependency("quote"),
+            .dependency("quote")
+            .edition(Edition::Edition2015),
         "serde_derive",
         "1.0.125",
         &mut manifest_env,
@@ -63,7 +70,11 @@ fn main() -> Result<()> {
     crates_io.fetch_lib(
         &tmp_dir,
         "lib.rs",
-        LocalProjectBuilder::default().dependency("serde_derive"),
+        LocalProjectBuilder::default()
+            .dependency("serde_derive")
+            .cfg("serde_derive")
+            .features(&["default", "std", "alloc", "serde_derive"])
+            .edition(Edition::Edition2015),
         "serde",
         "1.0.125",
         &mut manifest_env,
@@ -88,6 +99,7 @@ fn main() -> Result<()> {
         &tmp_dir,
         "lib.rs",
         LocalProjectBuilder::default()
+            .features(&["default", "std", "alloc"])
             .dependency("itoa")
             .dependency("ryu")
             .dependency("serde"),
@@ -104,16 +116,15 @@ fn main() -> Result<()> {
         .dependency("serde_json")
         .build()
         .unwrap();
-    let manifest = RspkgProject::new("_root_".into(), arg.into());
+    let manifest = RspkgProject::new("sample".into(), arg.into());
 
     manifest_env.add_project(rspkg_runtime.into());
     manifest_env.add_project(manifest.into());
     manifest_env.prepare_deps()?;
 
-    let manifest_out = manifest_env.build("_root_")?;
-    Command::new(manifest_out.out)
-        .spawn()?
-        .wait()?
-        .check("manifest")?;
+    let manifest_out = manifest_env.build("sample-manifest")?;
+
+    println!("Built out: {}", manifest_out.out.display());
+
     Ok(())
 }

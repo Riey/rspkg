@@ -2,7 +2,7 @@ use crate::{
     BuildArtifacts, BuildEnvironment, CheckResult, CrateType, Edition, Result, RustcFlags,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::path::PathBuf;
+use std::{fmt::Display, path::PathBuf};
 use std::process::{Command, Stdio};
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -112,7 +112,7 @@ pub struct LocalProjectBuilder {
     crate_type: CrateType,
     edition: Edition,
     dependencies: Vec<String>,
-    features: Vec<String>,
+    cfgs: Vec<String>,
 }
 
 impl LocalProjectBuilder {
@@ -141,8 +141,20 @@ impl LocalProjectBuilder {
         self
     }
 
-    pub fn feature(mut self, feature: impl Into<String>) -> Self {
-        self.features.push(feature.into());
+    pub fn cfg(mut self, cfg: impl Into<String>) -> Self {
+        self.cfgs.push(cfg.into());
+        self
+    }
+
+    pub fn feature(mut self, feature: impl Display) -> Self {
+        self.cfgs.push(format!("feature=\"{}\"", feature));
+        self
+    }
+
+    pub fn features(mut self, features: &[&str]) -> Self {
+        for feature in features {
+            self = self.feature(feature);
+        }
         self
     }
 
@@ -151,7 +163,7 @@ impl LocalProjectBuilder {
             root_file: self.root_file?,
             crate_type: self.crate_type,
             edition: self.edition,
-            features: self.features,
+            cfgs: self.cfgs,
             dependencies: self.dependencies,
             project_name: self.project_name,
         })
@@ -167,7 +179,7 @@ pub struct LocalProject {
     crate_type: CrateType,
     edition: Edition,
     dependencies: Vec<String>,
-    features: Vec<String>,
+    cfgs: Vec<String>,
 }
 
 impl LocalProject {
@@ -177,7 +189,7 @@ impl LocalProject {
         crate_type: CrateType,
         edition: Edition,
         dependencies: Vec<String>,
-        features: Vec<String>,
+        cfgs: Vec<String>,
     ) -> Self {
         Self {
             project_name: crate_name
@@ -186,7 +198,7 @@ impl LocalProject {
             crate_type,
             edition,
             dependencies,
-            features,
+            cfgs,
         }
     }
 
@@ -217,9 +229,13 @@ impl LocalProject {
 
     pub fn build(&self, env: &BuildEnvironment) -> Result<BuildArtifacts> {
         let out = match self.crate_type() {
-            CrateType::Bin => env.out_dir().join(self.crate_name()),
-            CrateType::Lib => env.out_dir().join(format!("lib{}.rlib", self.crate_name())),
-            CrateType::ProcMacro => env.out_dir().join(format!("lib{}.so", self.crate_name())),
+            CrateType::Bin => env.out_dir().join(self.crate_name().replace("-", "_")),
+            CrateType::Lib => env
+                .out_dir()
+                .join(format!("lib{}.rlib", self.crate_name().replace("-", "_"))),
+            CrateType::ProcMacro => env
+                .out_dir()
+                .join(format!("lib{}.so", self.crate_name().replace("-", "_"))),
         };
 
         if !out.exists() {
@@ -229,17 +245,24 @@ impl LocalProject {
                 .arg(self.crate_name().replace("-", "_"))
                 .arg("-L")
                 .arg(env.out_dir())
-                .arg("-o")
-                .arg(&out)
+                .arg("--out-dir")
+                .arg(env.out_dir())
                 .rustc_flags(self.edition())
                 .rustc_flags(self.crate_type())
                 .rustc_flags(env.profile());
 
+            for cfg in self.cfgs.iter() {
+                cmd.arg("--cfg").arg(cfg);
+            }
+
             for dep in self.dependencies.iter() {
                 let dep_project = env.get_project(dep)?;
                 let dep_out = dep_project.build(env)?;
-                cmd.arg("--extern")
-                    .arg(format!("{}={}", dep, dep_out.out.display()));
+                cmd.arg("--extern").arg(format!(
+                    "{}={}",
+                    dep.replace("-", "_"),
+                    dep_out.out.display()
+                ));
             }
 
             eprintln!("RUN: {:?}", cmd);
