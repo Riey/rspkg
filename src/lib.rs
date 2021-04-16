@@ -1,43 +1,69 @@
 mod build;
 mod error;
+#[cfg(feature = "fetch")]
+mod fetch;
 mod project;
 
 pub use crate::build::{BuildArtifacts, BuildEnvironment};
 pub use crate::error::{Error, Result};
-pub use crate::project::Project;
+#[cfg(feature = "fetch")]
+pub use crate::fetch::CratesIoRegistry;
+pub use crate::project::{
+    LocalProject, LocalProjectBuilder, Project, RspkgProject,
+};
 
+use serde::{Deserialize, Serialize};
 use std::process::{Command, ExitStatus};
 
 pub trait CheckResult<T> {
     fn check(&self, arg: T) -> Result<()>;
 }
 
-impl CheckResult<&'static str> for ExitStatus {
-    fn check(&self, arg: &'static str) -> Result<()> {
+impl CheckResult<&str> for ExitStatus {
+    fn check(&self, arg: &str) -> Result<()> {
         if self.success() {
             Ok(())
         } else {
-            Err(Error::CommandError(arg, *self))
+            Err(Error::CommandError(arg.into(), *self))
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum CrateType {
     Bin,
     Lib,
+    ProcMacro,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+impl Default for CrateType {
+    fn default() -> Self {
+        Self::Lib
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Profile {
     Dev,
     Release,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+impl Default for Profile {
+    fn default() -> Self {
+        Self::Dev
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Edition {
     Edition2015,
     Edition2018,
+}
+
+impl Default for Edition {
+    fn default() -> Self {
+        Self::Edition2018
+    }
 }
 
 pub trait RustcFlags<T> {
@@ -58,6 +84,7 @@ impl RustcFlags<CrateType> for Command {
         match arg {
             CrateType::Bin => self.arg("--crate-type=bin"),
             CrateType::Lib => self.arg("--crate-type=lib"),
+            CrateType::ProcMacro => self.arg("--crate-type=proc-macro"),
         }
     }
 }

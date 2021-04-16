@@ -1,7 +1,7 @@
-use crate::{CheckResult, CrateType, Error, Profile, Project, Result, RustcFlags};
-use std::collections::HashMap;
+use crate::{Error, Profile, Project, Result};
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::process::Command;
+use std::{collections::HashMap, path::Path};
 
 pub struct BuildEnvironment {
     profile: Profile,
@@ -18,51 +18,48 @@ impl BuildEnvironment {
         }
     }
 
-    pub fn add_project(&mut self, project: Project) {
-        self.projects.insert(project.crate_name().into(), project);
+    pub fn out_dir(&self) -> &Path {
+        &self.out_dir
     }
 
-    pub fn build(&self, crate_name: &str) -> Result<BuildArtifacts> {
-        let project = self
-            .projects
-            .get(crate_name)
-            .ok_or_else(|| Error::CrateNotFound(crate_name.into()))?;
+    pub fn profile(&self) -> Profile {
+        self.profile
+    }
 
-        let out = match project.crate_type() {
-            CrateType::Bin => self.out_dir.join(project.crate_name()),
-            CrateType::Lib => self
-                .out_dir
-                .join(format!("lib{}.rlib", project.crate_name())),
-        };
+    pub fn has_project(&self, project_name: &str) -> bool {
+        self.projects.contains_key(project_name)
+    }
 
-        if !out.exists() {
-            let mut cmd = Command::new("rustc");
-            cmd.arg(project.root_file())
-                .arg("--crate-name")
-                .arg(project.crate_name())
-                .arg("-L")
-                .arg(&self.out_dir)
-                .arg("-o")
-                .arg(&out)
-                .rustc_flags(project.edition())
-                .rustc_flags(project.crate_type())
-                .rustc_flags(self.profile);
+    pub fn add_project(&mut self, project: Project) {
+        self.projects.insert(project.id().into(), project);
+    }
 
-            for dep in project.dependencies() {
-                let dep_out = self.build(dep)?;
-                cmd.arg("--extern")
-                    .arg(format!("{}={}", dep, dep_out.out.display()));
+    pub fn get_project(&self, project_name: &str) -> Result<&Project> {
+        self.projects
+            .get(project_name)
+            .ok_or_else(|| Error::CrateNotFound(project_name.into()))
+    }
+
+    /// Load all dependencies into env
+    pub fn prepare_deps(&mut self) -> Result<()> {
+        let mut new_projects = self.projects.clone();
+        for project in self.projects.values() {
+            let deps = project.dependencies(self)?;
+            for dep in deps {
+                new_projects.insert(dep.id().into(), dep);
             }
-
-            eprintln!("RUN: {:?}", cmd);
-
-            cmd.spawn()?.wait()?.check("rustc")?;
         }
+        self.projects = new_projects;
 
-        Ok(BuildArtifacts { out })
+        Ok(())
+    }
+
+    pub fn build(&self, project_name: &str) -> Result<BuildArtifacts> {
+        self.get_project(project_name)?.build(self)
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct BuildArtifacts {
     pub out: PathBuf,
 }
