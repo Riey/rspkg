@@ -1,5 +1,4 @@
-use crate::{Error, Profile, Project, Result};
-use serde::{Deserialize, Serialize};
+use crate::{Error, Project, Result};
 use std::path::PathBuf;
 use std::{collections::HashMap, path::Path};
 
@@ -60,7 +59,18 @@ impl BuildEnvironment {
     }
 }
 
-#[derive(Serialize, Deserialize)]
 pub struct BuildArtifacts {
     pub out: PathBuf,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Profile {
+    Dev,
+    Release,
+}
+
+impl Default for Profile {
+    fn default() -> Self {
+        Self::Dev
+    }
 }

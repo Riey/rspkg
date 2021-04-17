@@ -1,0 +1,16 @@
+[package]
+name = "rspkg-runtime"
+version = "0.1.0"
+authors = ["Riey <creeper844@gmail.com>"]
+edition = "2018"
+
+[features]
+default = ["fetch"]
+fetch = ["reqwest"]
+
+[dependencies]
+rspkg-shared = { path = "../shared" }
+wasmer = { version = "1.0.2", default-features = false, features = ["default-singlepass", "jit"] }
+reqwest = { version = "0.11.3", default-features = false, features = ["rustls-tls", "blocking", "json"], optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1" }

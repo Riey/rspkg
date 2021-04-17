@@ -3,7 +3,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::{io::Write, path::PathBuf};
 
-use crate::{BuildEnvironment, CheckResult, LocalProjectBuilder, Result};
+use crate::{BuildEnvironment, CheckResult, LocalProject, Result};
 
 pub struct CratesIoRegistry {
     client: Client,
@@ -22,20 +22,17 @@ impl CratesIoRegistry {
         &self,
         out_dir: &Path,
         root: &str,
-        builder: LocalProjectBuilder,
-        crate_name: &str,
+        project: LocalProject,
         version: &str,
         env: &mut BuildEnvironment,
     ) -> Result<()> {
-        let path = self.fetch(out_dir, crate_name, version)?;
+        let path = self.fetch(out_dir, project.crate_name(), version)?;
+
         env.add_project(
-            builder
-                .root_file(path.join("src").join(root))
-                .project_name(crate_name)
-                .build()
-                .unwrap()
-                .into(),
+            project.build_root_file(path.join("src").join(root))
+                .into()
         );
+
         Ok(())
     }
 

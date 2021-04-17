@@ -1,16 +1,7 @@
-use std::env;
+use rspkg::add_dependency;
 
-fn main() {
-    let mut args = env::args();
-    args.next();
-    let command = args.next().unwrap();
-
-    match command.as_str() {
-        "build" => {
-            let dummy = "{ \"out\": \".\" }";
-            println!("{}", dummy);
-        }
-        "dependencies" => println!("[]"),
-        _ => panic!("Unknown command: {}", command),
-    }
+#[no_mangle]
+pub extern "C" fn dependencies() {
+    add_dependency(PackageType::Local, "./src/lib.rs");
 }
+

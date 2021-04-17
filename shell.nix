@@ -1,9 +1,23 @@
-{ nixpkgs ? <nixpkgs>, }:
 let
-  pkgs = import nixpkgs {};
+  moz_overlay = import (builtins.fetchTarball https://github.com/mozilla/nixpkgs-mozilla/archive/master.tar.gz);
+  pkgs = import <nixpkgs> { overlays = [ moz_overlay ]; };
+  rust = (pkgs.rustChannelOf { channel = "stable"; }).rust
+  .override {
+    targets = [
+      "x86_64-unknown-linux-gnu"
+      "wasm32-wasi"
+    ];
+    extensions = ["rust-src"];
+  };
 in
-pkgs.mkShell {
-  name = "rust-pager-shell";
-  nativeBuildInput = with pkgs; [ rustc cargo ];
+with pkgs;
+mkShell {
+  name = "rspkg-shell";
+
+  buildInputs = [
+  ];
+  nativeBuildInputs = [
+    rust
+  ];
 }
 
