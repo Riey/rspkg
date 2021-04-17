@@ -1,9 +1,59 @@
 use crate::{
     BuildArtifacts, BuildEnvironment, CheckResult, CrateType, Edition, Result, RustcFlags,
 };
-use std::{collections::HashMap, process::Command};
-use std::{fmt::Display, path::PathBuf};
-use wasmer::{imports, Function, Singlepass, Store, Target, JIT};
+use rspkg_shared::PackageType;
+use std::{collections::HashMap, fmt::Debug, path::Path, process::Command};
+use std::{
+    fmt::Display,
+    path::PathBuf,
+    result::Result as StdResult,
+    sync::{Arc, Mutex},
+};
+use wasmer::{imports, Array, Function, WasmPtr};
+use wasmer::{HostEnvInitError, Instance, LazyInit, Memory, WasmerEnv};
+
+#[derive(Clone)]
+struct ManifestWasmEnv {
+    memory: LazyInit<Memory>,
+    deps: Arc<Mutex<HashMap<String, Project>>>,
+}
+
+impl ManifestWasmEnv {
+    fn add_dependency(
+        &self,
+        package_ty: u32,
+        name: WasmPtr<u8, Array>,
+        name_len: u32,
+        path: WasmPtr<u8, Array>,
+        path_len: u32,
+    ) {
+        let name = unsafe {
+            name.get_utf8_str(self.memory.get_unchecked(), name_len)
+                .unwrap()
+        };
+
+        let path = unsafe {
+            path.get_utf8_str(self.memory.get_unchecked(), path_len)
+                .unwrap()
+        };
+
+        let mut deps = self.deps.lock().unwrap();
+
+        let project = if package_ty == PackageType::Rspkg as u32 {
+            Project::Rspkg(RspkgProject::new(name).build_manifest(path))
+        } else {
+            Project::Local(LocalProject::new(path).build_project_name(name))
+        };
+    }
+}
+
+impl WasmerEnv for ManifestWasmEnv {
+    fn init_with_instance(&mut self, instance: &Instance) -> StdResult<(), HostEnvInitError> {
+        self.memory
+            .initialize(instance.exports.get_memory("memory").unwrap().clone());
+        Ok(())
+    }
+}
 
 #[derive(Clone)]
 pub enum Project {
@@ -30,7 +80,11 @@ impl Project {
         }
     }
 
-    pub fn dependencies(&self, env: &BuildEnvironment, deps: &mut HashMap<String, Project>) -> Result<()> {
+    pub fn dependencies(
+        &self,
+        env: &BuildEnvironment,
+        deps: &Arc<Mutex<HashMap<String, Project>>>,
+    ) -> Result<()> {
         match self {
             Project::Rspkg(p) => p.dependencies(env, deps),
             Project::Local(p) => p.dependencies(env, deps),
@@ -74,20 +128,23 @@ impl RspkgProject {
         todo!()
     }
 
-    pub fn dependencies(&self, env: &mut BuildEnvironment) -> Result<()> {
+    pub fn dependencies(
+        &self,
+        env: &BuildEnvironment,
+        deps: &Arc<Mutex<HashMap<String, Project>>>,
+    ) -> Result<()> {
         let wasm = std::fs::read(self.build_manifest(env)?.out)?;
-        let engine = JIT::new(Singlepass::new());
-        let store = Store::new(&engine.engine());
-        let module = wasmer::Module::new(&store, &wasm).unwrap();
-        let add_dependency = || {
-            env.out_dir();
-        };
         let import_object = imports! {
             "env" => {
-                "add_dependency" => Function::new_native(&store, add_dependency),
+                "add_dependency" => Function::new_native_with_env(env.store(), ManifestWasmEnv {
+                    memory: LazyInit::default(),
+                    deps: deps.clone(),
+                }, ManifestWasmEnv::add_dependency),
             },
         };
+        let module = wasmer::Module::new(env.store(), &wasm).unwrap();
         let instance = wasmer::Instance::new(&module, &import_object).unwrap();
+        instance.exports.get_memory("").unwrap();
 
         let deps_func = instance.exports.get_function("dependencies").unwrap();
         deps_func.call(&[]).unwrap();
@@ -219,17 +276,21 @@ impl LocalProject {
         self.crate_type
     }
 
-    pub fn dependencies(&self, env: &BuildEnvironment) -> Result<Vec<Project>> {
-        let mut out = Vec::new();
+    pub fn dependencies(
+        &self,
+        env: &BuildEnvironment,
+        deps: &Arc<Mutex<HashMap<String, Project>>>,
+    ) -> Result<()> {
         for dep in self.dependencies.iter() {
             let dep = env.get_project(&dep.name)?;
-            out.extend(dep.dependencies(env)?);
+            dep.dependencies(env, deps)?;
         }
-        Ok(out)
+
+        Ok(())
     }
 
     pub fn out_file_name(&self) -> String {
-        if self.target.map_or(false, |t| t.contains("wasm")) {
+        if self.target.as_ref().map_or(false, |t| t.contains("wasm")) {
             format!("{}.wasm", self.crate_name())
         } else {
             match self.crate_type() {

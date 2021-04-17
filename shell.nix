@@ -5,7 +5,7 @@ let
   .override {
     targets = [
       "x86_64-unknown-linux-gnu"
-      "wasm32-wasi"
+      "wasm32-unknown-unknown"
     ];
     extensions = ["rust-src"];
   };

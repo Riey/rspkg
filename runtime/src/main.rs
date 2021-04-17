@@ -13,14 +13,15 @@ fn main() -> Result<()> {
 
     // bootstrap
     let rspkg_shared = LocalProject::default()
-        .root_file("./shared/src/lib.rs")
-        .project_name("rspkg-shared");
+        .build_root_file("./shared/src/lib.rs")
+        .build_project_name("rspkg-shared");
     let rspkg_runtime = LocalProject::default()
-        .root_file("./src/lib.rs")
-        .project_name("rspkg")
-        .dependency(Dependency::new("rspkg-shared"));
+        .build_root_file("./src/lib.rs")
+        .build_project_name("rspkg")
+        .build_dependency(Dependency::new("rspkg-shared"));
     let manifest = RspkgProject::new("sample".into(), arg.into());
 
+    manifest_env.add_project(rspkg_shared.into());
     manifest_env.add_project(rspkg_runtime.into());
     manifest_env.add_project(manifest.into());
     manifest_env.prepare_deps()?;

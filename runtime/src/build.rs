@@ -1,20 +1,36 @@
+use wasmer::{Singlepass, Store, JIT};
+
 use crate::{Error, Project, Result};
 use std::path::PathBuf;
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::{Arc, Mutex},
+};
 
 pub struct BuildEnvironment {
     profile: Profile,
     projects: HashMap<String, Project>,
     out_dir: PathBuf,
+
+    store: Store,
 }
 
 impl BuildEnvironment {
     pub fn new(profile: Profile, out_dir: PathBuf) -> Self {
+        let engine = JIT::new(Singlepass::new());
+        let store = Store::new(&engine.engine());
+
         Self {
             profile,
             out_dir,
+            store,
             projects: HashMap::new(),
         }
+    }
+
+    pub fn store(&self) -> &Store {
+        &self.store
     }
 
     pub fn out_dir(&self) -> &Path {
@@ -42,14 +58,15 @@ impl BuildEnvironment {
 
     /// Load all dependencies into env
     pub fn prepare_deps(&mut self) -> Result<()> {
-        let mut new_projects = self.projects.clone();
+        let new_projects = Arc::new(Mutex::new(self.projects.clone()));
         for project in self.projects.values() {
-            let deps = project.dependencies(self)?;
-            for dep in deps {
-                new_projects.insert(dep.id().into(), dep);
-            }
+            project.dependencies(self, &new_projects)?;
         }
-        self.projects = new_projects;
+        self.projects = if let Ok(p) = Arc::try_unwrap(new_projects) {
+            p.into_inner().unwrap()
+        } else {
+            unreachable!()
+        };
 
         Ok(())
     }

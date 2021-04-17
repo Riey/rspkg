@@ -1,5 +1,5 @@
+use crate::{CrateType, Edition, Profile};
 use std::process::Command;
-use crate::{Edition, Profile, CrateType};
 
 pub trait RustcFlags<T> {
     fn rustc_flags(&mut self, arg: T) -> &mut Self;

@@ -28,10 +28,7 @@ impl CratesIoRegistry {
     ) -> Result<()> {
         let path = self.fetch(out_dir, project.crate_name(), version)?;
 
-        env.add_project(
-            project.build_root_file(path.join("src").join(root))
-                .into()
-        );
+        env.add_project(project.build_root_file(path.join("src").join(root)).into());
 
         Ok(())
     }
