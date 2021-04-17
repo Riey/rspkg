@@ -1,36 +1,34 @@
-use wasmer::{Singlepass, Store, JIT};
-
-use crate::{Error, Project, Result};
+use std::path::Path;
 use std::path::PathBuf;
-use std::{
-    collections::HashMap,
-    path::Path,
-    sync::{Arc, Mutex},
-};
 
+#[derive(Clone)]
 pub struct BuildEnvironment {
     profile: Profile,
-    projects: HashMap<String, Project>,
     out_dir: PathBuf,
-
-    store: Store,
+    build_target: Option<String>,
+    host_target: Option<String>,
 }
 
 impl BuildEnvironment {
-    pub fn new(profile: Profile, out_dir: PathBuf) -> Self {
-        let engine = JIT::new(Singlepass::new());
-        let store = Store::new(&engine.engine());
-
+    pub fn new(
+        profile: Profile,
+        out_dir: PathBuf,
+        build_target: Option<String>,
+        host_target: Option<String>,
+    ) -> Self {
         Self {
             profile,
             out_dir,
-            store,
-            projects: HashMap::new(),
+            build_target,
+            host_target,
         }
     }
 
-    pub fn store(&self) -> &Store {
-        &self.store
+    pub fn build_target(&self) -> Option<&str> {
+        self.build_target.as_deref()
+    }
+    pub fn host_target(&self) -> Option<&str> {
+        self.host_target.as_deref()
     }
 
     pub fn out_dir(&self) -> &Path {
@@ -39,40 +37,6 @@ impl BuildEnvironment {
 
     pub fn profile(&self) -> Profile {
         self.profile
-    }
-
-    pub fn has_project(&self, project_name: &str) -> bool {
-        self.projects.contains_key(project_name)
-    }
-
-    pub fn add_project(&mut self, project: Project) {
-        eprintln!("Add project: {}", project.id());
-        self.projects.insert(project.id().into(), project);
-    }
-
-    pub fn get_project(&self, project_name: &str) -> Result<&Project> {
-        self.projects
-            .get(project_name)
-            .ok_or_else(|| Error::CrateNotFound(project_name.into()))
-    }
-
-    /// Load all dependencies into env
-    pub fn prepare_deps(&mut self) -> Result<()> {
-        let new_projects = Arc::new(Mutex::new(self.projects.clone()));
-        for project in self.projects.values() {
-            project.dependencies(self, &new_projects)?;
-        }
-        self.projects = if let Ok(p) = Arc::try_unwrap(new_projects) {
-            p.into_inner().unwrap()
-        } else {
-            unreachable!()
-        };
-
-        Ok(())
-    }
-
-    pub fn build(&self, project_name: &str) -> Result<BuildArtifacts> {
-        self.get_project(project_name)?.build(self)
     }
 }
 

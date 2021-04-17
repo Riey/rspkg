@@ -9,7 +9,12 @@ fn main() -> Result<()> {
     let arg = env::args().nth(1).expect("No argument");
 
     let tmp_dir = PathBuf::from("/tmp/rspkg");
-    let mut manifest_env = BuildEnvironment::new(Profile::Release, tmp_dir.clone());
+    let mut manifest_env = BuildEnvironment::new(
+        Profile::Release,
+        tmp_dir.clone(),
+        None,
+        Some("wasm32-unknown-unknown".into()),
+    );
 
     // bootstrap
     let rspkg_shared = LocalProject::default()

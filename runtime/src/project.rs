@@ -1,8 +1,7 @@
 use crate::{
     BuildArtifacts, BuildEnvironment, CheckResult, CrateType, Edition, Result, RustcFlags,
 };
-use rspkg_shared::PackageType;
-use std::{collections::HashMap, fmt::Debug, path::Path, process::Command};
+use std::{collections::HashMap, fmt::Debug, process::Command};
 use std::{
     fmt::Display,
     path::PathBuf,
@@ -19,9 +18,42 @@ struct ManifestWasmEnv {
 }
 
 impl ManifestWasmEnv {
-    fn add_dependency(
+    fn add_dep(&self, p: Project) {
+        let mut deps = self.deps.lock().unwrap();
+        // TODO: merge features
+        deps.insert(p.id().into(), p);
+    }
+
+    fn add_local_dependency(
         &self,
-        package_ty: u32,
+        name: WasmPtr<u8, Array>,
+        name_len: u32,
+        path: WasmPtr<u8, Array>,
+        path_len: u32,
+        crate_type: u32,
+        edition: u32,
+    ) {
+        let name = unsafe {
+            name.get_utf8_str(self.memory.get_unchecked(), name_len)
+                .unwrap()
+        };
+
+        let path = unsafe {
+            path.get_utf8_str(self.memory.get_unchecked(), path_len)
+                .unwrap()
+        };
+
+        self.add_dep(
+            LocalProject::new(path.into())
+                .build_project_name(name)
+                .build_crate_type(CrateType::from_u32(crate_type).unwrap_or_default())
+                .build_edition(Edition::from_u32(edition).unwrap_or_default())
+                .into(),
+        );
+    }
+
+    fn add_rspkg_dependency(
+        &self,
         name: WasmPtr<u8, Array>,
         name_len: u32,
         path: WasmPtr<u8, Array>,
@@ -37,13 +69,7 @@ impl ManifestWasmEnv {
                 .unwrap()
         };
 
-        let mut deps = self.deps.lock().unwrap();
-
-        let project = if package_ty == PackageType::Rspkg as u32 {
-            Project::Rspkg(RspkgProject::new(name).build_manifest(path))
-        } else {
-            Project::Local(LocalProject::new(path).build_project_name(name))
-        };
+        self.add_dep(RspkgProject::new(name, path.into()).into());
     }
 }
 
@@ -117,7 +143,7 @@ impl RspkgProject {
         let manifest = LocalProject::new(self.manifest.clone())
             .build_project_name(self.project_name.clone())
             .build_crate_type(CrateType::Cdylib)
-            .build_target("wasm32-wasi")
+            .build_target("wasm32-unknown-unknown")
             .build_edition(Edition::Edition2018)
             .build_dependency(Dependency::new("rspkg"));
 
@@ -134,12 +160,14 @@ impl RspkgProject {
         deps: &Arc<Mutex<HashMap<String, Project>>>,
     ) -> Result<()> {
         let wasm = std::fs::read(self.build_manifest(env)?.out)?;
+        let manifest_env = ManifestWasmEnv {
+            memory: LazyInit::default(),
+            deps: deps.clone(),
+        };
         let import_object = imports! {
             "env" => {
-                "add_dependency" => Function::new_native_with_env(env.store(), ManifestWasmEnv {
-                    memory: LazyInit::default(),
-                    deps: deps.clone(),
-                }, ManifestWasmEnv::add_dependency),
+                "add_local_dependency" => Function::new_native_with_env(env.store(), manifest_env.clone(), ManifestWasmEnv::add_local_dependency),
+                "add_rspkg_dependency" => Function::new_native_with_env(env.store(), manifest_env, ManifestWasmEnv::add_rspkg_dependency),
             },
         };
         let module = wasmer::Module::new(env.store(), &wasm).unwrap();
@@ -190,55 +218,6 @@ impl Dependency {
     }
 }
 
-impl LocalProject {
-    pub fn build_root_file(mut self, root_file: impl Into<PathBuf>) -> Self {
-        self.root_file = root_file.into();
-        self
-    }
-
-    pub fn build_project_name(mut self, name: impl Into<String>) -> Self {
-        self.project_name = name.into();
-        self
-    }
-
-    pub fn build_target(mut self, target: impl Into<String>) -> Self {
-        self.target = Some(target.into());
-        self
-    }
-
-    pub fn build_crate_type(mut self, ty: CrateType) -> Self {
-        self.crate_type = ty;
-        self
-    }
-
-    pub fn build_edition(mut self, edition: Edition) -> Self {
-        self.edition = edition;
-        self
-    }
-
-    pub fn build_dependency(mut self, dep: Dependency) -> Self {
-        self.dependencies.push(dep);
-        self
-    }
-
-    pub fn build_cfg(mut self, cfg: impl Into<String>) -> Self {
-        self.cfgs.push(cfg.into());
-        self
-    }
-
-    pub fn build_feature(mut self, feature: impl Display) -> Self {
-        self.cfgs.push(format!("feature=\"{}\"", feature));
-        self
-    }
-
-    pub fn build_features(mut self, features: &[&str]) -> Self {
-        for feature in features {
-            self = self.build_feature(feature);
-        }
-        self
-    }
-}
-
 /// Local project
 #[derive(Clone, Default)]
 pub struct LocalProject {
@@ -247,7 +226,6 @@ pub struct LocalProject {
     project_name: String,
     crate_type: CrateType,
     edition: Edition,
-    target: Option<String>,
     dependencies: Vec<Dependency>,
     cfgs: Vec<String>,
 }
@@ -319,7 +297,7 @@ impl LocalProject {
                 .rustc_flags(self.crate_type())
                 .rustc_flags(env.profile());
 
-            if let Some(target) = self.target.as_ref() {
+            if let Some(target) = env.target() {
                 cmd.arg("--target").arg(target);
             }
 
@@ -343,5 +321,52 @@ impl LocalProject {
         }
 
         Ok(BuildArtifacts { out })
+    }
+
+    pub fn build_root_file(mut self, root_file: impl Into<PathBuf>) -> Self {
+        self.root_file = root_file.into();
+        self
+    }
+
+    pub fn set_build_deps(mut self) -> Self {
+        self.is_build_dep = true;
+        self
+    }
+
+    pub fn build_project_name(mut self, name: impl Into<String>) -> Self {
+        self.project_name = name.into();
+        self
+    }
+
+    pub fn build_crate_type(mut self, ty: CrateType) -> Self {
+        self.crate_type = ty;
+        self
+    }
+
+    pub fn build_edition(mut self, edition: Edition) -> Self {
+        self.edition = edition;
+        self
+    }
+
+    pub fn build_dependency(mut self, dep: Dependency) -> Self {
+        self.dependencies.push(dep);
+        self
+    }
+
+    pub fn build_cfg(mut self, cfg: impl Into<String>) -> Self {
+        self.cfgs.push(cfg.into());
+        self
+    }
+
+    pub fn build_feature(mut self, feature: impl Display) -> Self {
+        self.cfgs.push(format!("feature=\"{}\"", feature));
+        self
+    }
+
+    pub fn build_features(mut self, features: &[&str]) -> Self {
+        for feature in features {
+            self = self.build_feature(feature);
+        }
+        self
     }
 }
