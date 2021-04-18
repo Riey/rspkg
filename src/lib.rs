@@ -7,40 +7,28 @@ pub mod ffi {
     use rspkg_shared::*;
 
     extern "C" {
-        /// Add rspkg depenedency into this manifest
-        pub fn add_rspkg_dependency(
-            name_ptr: *const u8,
-            name_len: usize,
-            path_ptr: *const u8,
-            path_len: usize,
-        );
+        // pub fn load_dependency(path_ptr: *const u8, path_len: usize) -> usize;
 
-        pub fn add_local_dependency(
-            name_ptr: *const u8,
+        pub fn build_file(
+            name: *const u8,
             name_len: usize,
-            path_ptr: *const u8,
-            path_len: usize,
+            root_path: *const u8,
+            root_path_len: usize,
             crate_ty: CrateType,
             edition: Edition,
-        );
+        ) -> u32;
     }
 }
 
-pub fn add_rspkg_dependency(name: &str, path: &str) {
+pub fn build_file(name: &str, root_path: &str, crate_ty: CrateType, edition: Edition) -> u32 {
     unsafe {
-        ffi::add_rspkg_dependency(name.as_ptr(), name.len(), path.as_ptr(), path.len());
-    }
-}
-
-pub fn add_local_dependency(name: &str, path: &str, crate_ty: CrateType, edition: Edition) {
-    unsafe {
-        ffi::add_local_dependency(
+        ffi::build_file(
             name.as_ptr(),
             name.len(),
-            path.as_ptr(),
-            path.len(),
+            root_path.as_ptr(),
+            root_path.len(),
             crate_ty,
             edition,
-        );
+        )
     }
 }

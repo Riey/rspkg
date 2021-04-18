@@ -1,10 +1,6 @@
 #![no_std]
 use core::panic::PanicInfo;
-use rspkg::{
-    add_local_dependency,
-    CrateType,
-    Edition,
-};
+use rspkg::{build_file, CrateType, Edition};
 
 #[panic_handler]
 fn panic(_panic: &PanicInfo<'_>) -> ! {
@@ -12,14 +8,9 @@ fn panic(_panic: &PanicInfo<'_>) -> ! {
 }
 
 #[no_mangle]
-pub extern "C" fn dependencies() {
-    add_local_dependency(
-        "helloworld",
-        "./hello.rs",
-        CrateType::Bin,
-        Edition::Edition2018,
-    );
-}
+pub extern "C" fn dependencies() {}
 
 #[no_mangle]
-pub extern "C" fn build() {}
+pub extern "C" fn build() -> u32 {
+    build_file("hello", "./hello.rs", CrateType::Bin, Edition::Edition2018)
+}

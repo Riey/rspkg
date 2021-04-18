@@ -6,12 +6,12 @@ mod fetch;
 mod project;
 mod rustc_flags;
 
-pub use crate::build::{BuildArtifacts, BuildEnvironment, Profile};
+pub use crate::build::{BuildArtifacts, BuildEnvironment, BuildInfo, Profile};
 pub use crate::denpendency::DependencyStore;
 pub use crate::error::{Error, Result};
 #[cfg(feature = "fetch")]
 pub use crate::fetch::CratesIoRegistry;
-pub use crate::project::{Dependency, LocalProject, Project, RspkgProject};
+pub use crate::project::{ManifestWasmEnv, Project};
 pub use crate::rustc_flags::RustcFlags;
 pub use rspkg_shared::*;
 

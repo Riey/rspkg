@@ -7,6 +7,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 pub enum Error {
     CrateNotFound(String),
+    ArtifactNotFound(u32),
     CommandError(String, ExitStatus),
     IoError(io::Error),
     SerdeError(serde_json::Error),
@@ -25,6 +26,9 @@ impl fmt::Display for Error {
         match self {
             Error::CrateNotFound(name) => {
                 write!(f, "Crate {} has not found", name)
+            }
+            Error::ArtifactNotFound(index) => {
+                write!(f, "Can't find artifact index {}", index)
             }
             Error::CommandError(command_name, status) => {
                 write!(f, "Command {} run error: {}", command_name, status)

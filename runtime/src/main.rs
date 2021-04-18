@@ -1,40 +1,34 @@
 use rspkg_runtime::{
-    BuildEnvironment, Dependency, DependencyStore, DependencyType, LocalProject, Profile, Result,
-    RspkgProject,
+    BuildEnvironment, BuildInfo, DependencyStore, DependencyType, ManifestWasmEnv, Profile,
+    Project, Result,
 };
 use std::path::PathBuf;
 use std::{env, sync::Arc};
-use wasmer::{Singlepass, Store, JIT};
 
 fn main() -> Result<()> {
     let arg = env::args().nth(1).expect("No argument");
+    let tmp_dir = PathBuf::from("rspkg-result");
 
-    let engine = JIT::new(Singlepass::new());
-    let store = Store::new(&engine.engine());
-
-    let tmp_dir = PathBuf::from("~/.rspkg");
-    let manifest_env = BuildEnvironment::new(Profile::Release, tmp_dir.clone(), None, None);
-
+    let build_env = Arc::new(BuildEnvironment::new(
+        Profile::Release,
+        tmp_dir.clone(),
+        None,
+        None,
+    ));
+    let rspkg_shared = BuildInfo::new("./shared/src/lib.rs", "rspkg-shared")
+        .build(&build_env, DependencyType::Manifest)?;
+    let rspkg = BuildInfo::new("./src/lib.rs", "rspkg")
+        .build_flag(format!(
+            "--extern=rspkg_shared={}",
+            rspkg_shared.out.display()
+        ))
+        .build(&build_env, DependencyType::Manifest)?;
     let deps = Arc::new(DependencyStore::default());
+    let manifest_env = ManifestWasmEnv::new(build_env, deps.clone(), Arc::new(rspkg.out));
 
-    // bootstrap
-    let rspkg_shared = LocalProject::default()
-        .build_root_file("./shared/src/lib.rs")
-        .build_project_name("rspkg-shared");
-    let rspkg_runtime = LocalProject::default()
-        .build_root_file("./src/lib.rs")
-        .build_project_name("rspkg")
-        .build_dependency(Dependency::new("rspkg-shared").build_type(DependencyType::Manifest));
-    let manifest = RspkgProject::new("sample".into(), arg.into());
-
-    deps.add_project(rspkg_shared);
-    deps.add_project(rspkg_runtime);
-    deps.add_project(manifest);
-
-    let manifest = deps.get_project("sample-manifest").unwrap();
-
-    manifest.dependencies(&manifest_env, &store, &deps).unwrap();
-    let manifest_out = manifest.build(&manifest_env, &deps, DependencyType::Manifest)?;
+    let manifest = Project::new("root", manifest_env, arg.into())?;
+    manifest.dependencies()?;
+    let manifest_out = deps.get_artifact(manifest.build(DependencyType::Normal)?)?;
 
     println!("Built out: {}", manifest_out.out.display());
 
