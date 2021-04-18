@@ -20,6 +20,7 @@ pub mod ffi {
     }
 }
 
+#[inline(always)]
 pub fn build_file(name: &str, root_path: &str, crate_ty: CrateType, edition: Edition) -> u32 {
     unsafe {
         ffi::build_file(
