@@ -1,6 +1,15 @@
 #![no_std]
+use core::panic::PanicInfo;
+use rspkg::{
+    add_local_dependency,
+    CrateType,
+    Edition,
+};
 
-use rspkg::add_local_dependency;
+#[panic_handler]
+fn panic(_panic: &PanicInfo<'_>) -> ! {
+    loop {}
+}
 
 #[no_mangle]
 pub extern "C" fn dependencies() {

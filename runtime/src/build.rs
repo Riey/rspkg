@@ -1,5 +1,6 @@
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+use rspkg_shared::DependencyType;
 
 #[derive(Clone)]
 pub struct BuildEnvironment {
@@ -27,12 +28,35 @@ impl BuildEnvironment {
     pub fn build_target(&self) -> Option<&str> {
         self.build_target.as_deref()
     }
+
     pub fn host_target(&self) -> Option<&str> {
         self.host_target.as_deref()
     }
 
+    pub fn get_target(&self, dep_ty: DependencyType) -> Option<&str> {
+        match dep_ty {
+            DependencyType::Normal => self.host_target(),
+            DependencyType::Build | DependencyType::Dev => self.build_target(),
+            DependencyType::Manifest => Some("wasm32-unknown-unknown"),
+        }
+    }
+
     pub fn out_dir(&self) -> &Path {
         &self.out_dir
+    }
+
+    pub fn target_out_dir(&self, dep_ty: DependencyType) -> PathBuf {
+        let dir = if let Some(t) = self.get_target(dep_ty) {
+            self.out_dir.join(t)
+        } else {
+            self.out_dir.clone()
+        };
+
+        if !dir.exists() {
+            std::fs::create_dir(&dir).ok();
+        }
+
+        dir
     }
 
     pub fn profile(&self) -> Profile {

@@ -14,3 +14,4 @@ wasmer = { version = "1.0.2", default-features = false, features = ["default-sin
 reqwest = { version = "0.11.3", default-features = false, features = ["rustls-tls", "blocking", "json"], optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
+dashmap = "4.0.2"

@@ -2,6 +2,33 @@
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u32)]
+pub enum DependencyType {
+    Normal = 0,
+    Build = 1,
+    Dev = 2,
+    Manifest = 10,
+}
+
+impl Default for DependencyType {
+    fn default() -> Self {
+        Self::Normal
+    }
+}
+
+impl DependencyType {
+    pub fn from_u32(n: u32) -> Option<Self> {
+        match n {
+            0 => Some(DependencyType::Normal),
+            1 => Some(DependencyType::Build),
+            2 => Some(DependencyType::Dev),
+            10 => Some(DependencyType::Manifest),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(u32)]
 pub enum CrateType {
     Bin = 0,
     Lib = 1,

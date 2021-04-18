@@ -1,20 +1,21 @@
 use rspkg_runtime::{
-    BuildEnvironment, CrateType, CratesIoRegistry, Dependency, Edition, LocalProject, Profile,
-    Result, RspkgProject,
+    BuildEnvironment, Dependency, DependencyStore, DependencyType, LocalProject, Profile, Result,
+    RspkgProject,
 };
-use std::env;
 use std::path::PathBuf;
+use std::{env, sync::Arc};
+use wasmer::{Singlepass, Store, JIT};
 
 fn main() -> Result<()> {
     let arg = env::args().nth(1).expect("No argument");
 
-    let tmp_dir = PathBuf::from("/tmp/rspkg");
-    let mut manifest_env = BuildEnvironment::new(
-        Profile::Release,
-        tmp_dir.clone(),
-        None,
-        Some("wasm32-unknown-unknown".into()),
-    );
+    let engine = JIT::new(Singlepass::new());
+    let store = Store::new(&engine.engine());
+
+    let tmp_dir = PathBuf::from("~/.rspkg");
+    let manifest_env = BuildEnvironment::new(Profile::Release, tmp_dir.clone(), None, None);
+
+    let deps = Arc::new(DependencyStore::default());
 
     // bootstrap
     let rspkg_shared = LocalProject::default()
@@ -23,15 +24,17 @@ fn main() -> Result<()> {
     let rspkg_runtime = LocalProject::default()
         .build_root_file("./src/lib.rs")
         .build_project_name("rspkg")
-        .build_dependency(Dependency::new("rspkg-shared"));
+        .build_dependency(Dependency::new("rspkg-shared").build_type(DependencyType::Manifest));
     let manifest = RspkgProject::new("sample".into(), arg.into());
 
-    manifest_env.add_project(rspkg_shared.into());
-    manifest_env.add_project(rspkg_runtime.into());
-    manifest_env.add_project(manifest.into());
-    manifest_env.prepare_deps()?;
+    deps.add_project(rspkg_shared);
+    deps.add_project(rspkg_runtime);
+    deps.add_project(manifest);
 
-    let manifest_out = manifest_env.build("sample-manifest")?;
+    let manifest = deps.get_project("sample-manifest").unwrap();
+
+    manifest.dependencies(&manifest_env, &store, &deps).unwrap();
+    let manifest_out = manifest.build(&manifest_env, &deps, DependencyType::Manifest)?;
 
     println!("Built out: {}", manifest_out.out.display());
 

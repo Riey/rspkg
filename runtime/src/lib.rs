@@ -1,4 +1,5 @@
 mod build;
+mod denpendency;
 mod error;
 #[cfg(feature = "fetch")]
 mod fetch;
@@ -6,6 +7,7 @@ mod project;
 mod rustc_flags;
 
 pub use crate::build::{BuildArtifacts, BuildEnvironment, Profile};
+pub use crate::denpendency::DependencyStore;
 pub use crate::error::{Error, Result};
 #[cfg(feature = "fetch")]
 pub use crate::fetch::CratesIoRegistry;

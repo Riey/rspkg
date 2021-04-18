@@ -1,85 +1,12 @@
 use crate::{
-    BuildArtifacts, BuildEnvironment, CheckResult, CrateType, Edition, Result, RustcFlags,
+    BuildArtifacts, BuildEnvironment, CheckResult, CrateType, DependencyStore, Edition, Result,
+    RustcFlags,
 };
-use std::{collections::HashMap, fmt::Debug, process::Command};
-use std::{
-    fmt::Display,
-    path::PathBuf,
-    result::Result as StdResult,
-    sync::{Arc, Mutex},
-};
-use wasmer::{imports, Array, Function, WasmPtr};
+use rspkg_shared::DependencyType;
+use std::{fmt::Debug, process::Command};
+use std::{fmt::Display, path::PathBuf, result::Result as StdResult, sync::Arc};
+use wasmer::{imports, Array, Function, Store, WasmPtr};
 use wasmer::{HostEnvInitError, Instance, LazyInit, Memory, WasmerEnv};
-
-#[derive(Clone)]
-struct ManifestWasmEnv {
-    memory: LazyInit<Memory>,
-    deps: Arc<Mutex<HashMap<String, Project>>>,
-}
-
-impl ManifestWasmEnv {
-    fn add_dep(&self, p: Project) {
-        let mut deps = self.deps.lock().unwrap();
-        // TODO: merge features
-        deps.insert(p.id().into(), p);
-    }
-
-    fn add_local_dependency(
-        &self,
-        name: WasmPtr<u8, Array>,
-        name_len: u32,
-        path: WasmPtr<u8, Array>,
-        path_len: u32,
-        crate_type: u32,
-        edition: u32,
-    ) {
-        let name = unsafe {
-            name.get_utf8_str(self.memory.get_unchecked(), name_len)
-                .unwrap()
-        };
-
-        let path = unsafe {
-            path.get_utf8_str(self.memory.get_unchecked(), path_len)
-                .unwrap()
-        };
-
-        self.add_dep(
-            LocalProject::new(path.into())
-                .build_project_name(name)
-                .build_crate_type(CrateType::from_u32(crate_type).unwrap_or_default())
-                .build_edition(Edition::from_u32(edition).unwrap_or_default())
-                .into(),
-        );
-    }
-
-    fn add_rspkg_dependency(
-        &self,
-        name: WasmPtr<u8, Array>,
-        name_len: u32,
-        path: WasmPtr<u8, Array>,
-        path_len: u32,
-    ) {
-        let name = unsafe {
-            name.get_utf8_str(self.memory.get_unchecked(), name_len)
-                .unwrap()
-        };
-
-        let path = unsafe {
-            path.get_utf8_str(self.memory.get_unchecked(), path_len)
-                .unwrap()
-        };
-
-        self.add_dep(RspkgProject::new(name, path.into()).into());
-    }
-}
-
-impl WasmerEnv for ManifestWasmEnv {
-    fn init_with_instance(&mut self, instance: &Instance) -> StdResult<(), HostEnvInitError> {
-        self.memory
-            .initialize(instance.exports.get_memory("memory").unwrap().clone());
-        Ok(())
-    }
-}
 
 #[derive(Clone)]
 pub enum Project {
@@ -92,6 +19,7 @@ impl From<RspkgProject> for Project {
         Self::Rspkg(p)
     }
 }
+
 impl From<LocalProject> for Project {
     fn from(p: LocalProject) -> Self {
         Self::Local(p)
@@ -109,18 +37,24 @@ impl Project {
     pub fn dependencies(
         &self,
         env: &BuildEnvironment,
-        deps: &Arc<Mutex<HashMap<String, Project>>>,
+        store: &Store,
+        deps: &Arc<DependencyStore>,
     ) -> Result<()> {
         match self {
-            Project::Rspkg(p) => p.dependencies(env, deps),
-            Project::Local(p) => p.dependencies(env, deps),
+            Project::Rspkg(p) => p.dependencies(env, store, deps),
+            Project::Local(p) => p.dependencies(env, store, deps),
         }
     }
 
-    pub fn build(&self, env: &BuildEnvironment) -> Result<BuildArtifacts> {
+    pub fn build(
+        &self,
+        env: &BuildEnvironment,
+        deps: &DependencyStore,
+        target: DependencyType,
+    ) -> Result<BuildArtifacts> {
         match self {
-            Project::Rspkg(p) => p.build(env),
-            Project::Local(p) => p.build(env),
+            Project::Rspkg(p) => p.build(env, deps, target),
+            Project::Local(p) => p.build(env, deps, target),
         }
     }
 }
@@ -139,38 +73,47 @@ impl RspkgProject {
         }
     }
 
-    fn build_manifest(&self, env: &BuildEnvironment) -> Result<BuildArtifacts> {
+    fn build_manifest(
+        &self,
+        env: &BuildEnvironment,
+        deps: &DependencyStore,
+    ) -> Result<BuildArtifacts> {
         let manifest = LocalProject::new(self.manifest.clone())
             .build_project_name(self.project_name.clone())
             .build_crate_type(CrateType::Cdylib)
-            .build_target("wasm32-unknown-unknown")
             .build_edition(Edition::Edition2018)
-            .build_dependency(Dependency::new("rspkg"));
+            .build_dependency(Dependency::new("rspkg").build_type(DependencyType::Manifest));
 
-        manifest.build(env)
+        manifest.build(env, deps, DependencyType::Manifest)
     }
 
-    pub fn build(&self, env: &BuildEnvironment) -> Result<BuildArtifacts> {
+    pub fn build(
+        &self,
+        env: &BuildEnvironment,
+        deps: &DependencyStore,
+        target: DependencyType,
+    ) -> Result<BuildArtifacts> {
         todo!()
     }
 
     pub fn dependencies(
         &self,
         env: &BuildEnvironment,
-        deps: &Arc<Mutex<HashMap<String, Project>>>,
+        store: &Store,
+        deps: &Arc<DependencyStore>,
     ) -> Result<()> {
-        let wasm = std::fs::read(self.build_manifest(env)?.out)?;
+        let wasm = std::fs::read(self.build_manifest(env, deps)?.out)?;
         let manifest_env = ManifestWasmEnv {
             memory: LazyInit::default(),
             deps: deps.clone(),
         };
         let import_object = imports! {
             "env" => {
-                "add_local_dependency" => Function::new_native_with_env(env.store(), manifest_env.clone(), ManifestWasmEnv::add_local_dependency),
-                "add_rspkg_dependency" => Function::new_native_with_env(env.store(), manifest_env, ManifestWasmEnv::add_rspkg_dependency),
+                "add_local_dependency" => Function::new_native_with_env(store, manifest_env.clone(), ManifestWasmEnv::add_local_dependency),
+                "add_rspkg_dependency" => Function::new_native_with_env(store, manifest_env, ManifestWasmEnv::add_rspkg_dependency),
             },
         };
-        let module = wasmer::Module::new(env.store(), &wasm).unwrap();
+        let module = wasmer::Module::new(store, &wasm).unwrap();
         let instance = wasmer::Instance::new(&module, &import_object).unwrap();
         instance.exports.get_memory("").unwrap();
 
@@ -184,6 +127,7 @@ impl RspkgProject {
 pub struct Dependency {
     pub name: String,
     pub no_default_features: bool,
+    pub ty: DependencyType,
     pub cfgs: Vec<String>,
 }
 
@@ -193,6 +137,11 @@ impl Dependency {
             name: name.into(),
             ..Default::default()
         }
+    }
+
+    pub fn build_type(mut self, ty: DependencyType) -> Self {
+        self.ty = ty;
+        self
     }
 
     pub fn build_cfg(mut self, cfg: impl Into<String>) -> Self {
@@ -257,18 +206,21 @@ impl LocalProject {
     pub fn dependencies(
         &self,
         env: &BuildEnvironment,
-        deps: &Arc<Mutex<HashMap<String, Project>>>,
+        store: &Store,
+        deps: &Arc<DependencyStore>,
     ) -> Result<()> {
         for dep in self.dependencies.iter() {
-            let dep = env.get_project(&dep.name)?;
-            dep.dependencies(env, deps)?;
+            let dep = deps.get_project(&dep.name)?;
+            dep.dependencies(env, store, deps)?;
         }
 
         Ok(())
     }
 
-    pub fn out_file_name(&self) -> String {
-        if self.target.as_ref().map_or(false, |t| t.contains("wasm")) {
+    pub fn out_file_name(&self, env: &BuildEnvironment, target: DependencyType) -> String {
+        if self.crate_type() == CrateType::Bin
+            && env.get_target(target).map_or(false, |t| t.contains("wasm"))
+        {
             format!("{}.wasm", self.crate_name())
         } else {
             match self.crate_type() {
@@ -281,8 +233,14 @@ impl LocalProject {
         }
     }
 
-    pub fn build(&self, env: &BuildEnvironment) -> Result<BuildArtifacts> {
-        let out = env.out_dir().join(self.out_file_name());
+    pub fn build(
+        &self,
+        env: &BuildEnvironment,
+        deps: &DependencyStore,
+        target: DependencyType,
+    ) -> Result<BuildArtifacts> {
+        let out_dir = env.target_out_dir(target);
+        let out = out_dir.join(self.out_file_name(env, target));
 
         if !out.exists() {
             let mut cmd = Command::new("rustc");
@@ -290,14 +248,16 @@ impl LocalProject {
                 .arg("--crate-name")
                 .arg(self.crate_name().replace("-", "_"))
                 .arg("-L")
-                .arg(env.out_dir())
+                .arg(&out_dir)
+                .arg("-L")
+                .arg(&env.out_dir())
                 .arg("--out-dir")
-                .arg(env.out_dir())
+                .arg(out_dir)
                 .rustc_flags(self.edition())
                 .rustc_flags(self.crate_type())
                 .rustc_flags(env.profile());
 
-            if let Some(target) = env.target() {
+            if let Some(target) = env.get_target(target) {
                 cmd.arg("--target").arg(target);
             }
 
@@ -306,8 +266,8 @@ impl LocalProject {
             }
 
             for dep in self.dependencies.iter() {
-                let dep_project = env.get_project(&dep.name)?;
-                let dep_out = dep_project.build(env)?;
+                let dep_project = deps.get_project(&dep.name)?;
+                let dep_out = dep_project.build(env, deps, dep.ty)?;
                 cmd.arg("--extern").arg(format!(
                     "{}={}",
                     dep.name.replace("-", "_"),
@@ -325,11 +285,6 @@ impl LocalProject {
 
     pub fn build_root_file(mut self, root_file: impl Into<PathBuf>) -> Self {
         self.root_file = root_file.into();
-        self
-    }
-
-    pub fn set_build_deps(mut self) -> Self {
-        self.is_build_dep = true;
         self
     }
 
@@ -368,5 +323,74 @@ impl LocalProject {
             self = self.build_feature(feature);
         }
         self
+    }
+}
+
+#[derive(Clone)]
+struct ManifestWasmEnv {
+    memory: LazyInit<Memory>,
+    deps: Arc<DependencyStore>,
+}
+
+impl ManifestWasmEnv {
+    fn add_dep(&self, p: Project) {
+        // TODO: merge features
+        self.deps.add_project(p);
+    }
+
+    fn add_local_dependency(
+        &self,
+        name: WasmPtr<u8, Array>,
+        name_len: u32,
+        path: WasmPtr<u8, Array>,
+        path_len: u32,
+        crate_type: u32,
+        edition: u32,
+    ) {
+        let name = unsafe {
+            name.get_utf8_str(self.memory.get_unchecked(), name_len)
+                .unwrap()
+        };
+
+        let path = unsafe {
+            path.get_utf8_str(self.memory.get_unchecked(), path_len)
+                .unwrap()
+        };
+
+        self.add_dep(
+            LocalProject::new(path.into())
+                .build_project_name(name)
+                .build_crate_type(CrateType::from_u32(crate_type).unwrap_or_default())
+                .build_edition(Edition::from_u32(edition).unwrap_or_default())
+                .into(),
+        );
+    }
+
+    fn add_rspkg_dependency(
+        &self,
+        name: WasmPtr<u8, Array>,
+        name_len: u32,
+        path: WasmPtr<u8, Array>,
+        path_len: u32,
+    ) {
+        let name = unsafe {
+            name.get_utf8_str(self.memory.get_unchecked(), name_len)
+                .unwrap()
+        };
+
+        let path = unsafe {
+            path.get_utf8_str(self.memory.get_unchecked(), path_len)
+                .unwrap()
+        };
+
+        self.add_dep(RspkgProject::new(name, path.into()).into());
+    }
+}
+
+impl WasmerEnv for ManifestWasmEnv {
+    fn init_with_instance(&mut self, instance: &Instance) -> StdResult<(), HostEnvInitError> {
+        self.memory
+            .initialize(instance.exports.get_memory("memory").unwrap().clone());
+        Ok(())
     }
 }

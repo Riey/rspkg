@@ -3,7 +3,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::{io::Write, path::PathBuf};
 
-use crate::{BuildEnvironment, CheckResult, LocalProject, Result};
+use crate::{CheckResult, Result};
 
 pub struct CratesIoRegistry {
     client: Client,
@@ -16,21 +16,6 @@ impl CratesIoRegistry {
                 .user_agent("rspkg (creeper844@gmail.com)")
                 .build()?,
         })
-    }
-
-    pub fn fetch_lib(
-        &self,
-        out_dir: &Path,
-        root: &str,
-        project: LocalProject,
-        version: &str,
-        env: &mut BuildEnvironment,
-    ) -> Result<()> {
-        let path = self.fetch(out_dir, project.crate_name(), version)?;
-
-        env.add_project(project.build_root_file(path.join("src").join(root)).into());
-
-        Ok(())
     }
 
     pub fn latest_version(&self, crate_name: &str) -> Result<String> {
