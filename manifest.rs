@@ -2,9 +2,11 @@
 
 rspkg::nostd_template!();
 
-use rspkg::{build_file, Artifact, CrateType, Edition};
+use rspkg::{Artifact, CrateType, Dependency, DependencyType, Edition};
 
 #[no_mangle]
 pub extern "C" fn build() -> Artifact {
-    build_file("hello", "./hello.rs", CrateType::Bin, Edition::Edition2018)
+    let hello = Dependency::new("hello", DependencyType::Normal);
+
+    hello.build("./hello.rs", CrateType::Bin, Edition::Edition2018)
 }

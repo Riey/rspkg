@@ -31,10 +31,10 @@ impl Project {
         let manifest_module = wasmer::Module::new(&store, &wasm).unwrap();
         let import_objects = imports! {
             "env" => {
-                "build_file" => Function::new_native_with_env(&store, manifest_env.clone(), ManifestWasmEnv::build_file),
                 "dependency_new" => Function::new_native_with_env(&store, manifest_env.clone(), ManifestWasmEnv::dependency_new),
                 "dependency_add_feature" => Function::new_native_with_env(&store, manifest_env.clone(), ManifestWasmEnv::dependency_add_feature),
                 "dependency_add_cfg" => Function::new_native_with_env(&store, manifest_env.clone(), ManifestWasmEnv::dependency_add_cfg),
+                "dependency_build" => Function::new_native_with_env(&store, manifest_env.clone(), ManifestWasmEnv::dependency_build),
             }
         };
 
@@ -141,36 +141,6 @@ impl ManifestWasmEnv {
             .build_crate_type(CrateType::from_u32(crate_ty).unwrap_or_default())
             .build(&self.env, DependencyType::Normal)
             .unwrap();
-
-        self.deps.add_artifact(out)
-    }
-
-    pub fn build_file(
-        &self,
-        name: WasmPtr<u8, Array>,
-        name_len: u32,
-        path: WasmPtr<u8, Array>,
-        path_len: u32,
-        crate_ty: u32,
-        edition: u32,
-    ) -> u32 {
-        let name = unsafe {
-            name.get_utf8_str(self.memory.get_unchecked(), name_len)
-                .unwrap()
-        };
-
-        let path = unsafe {
-            path.get_utf8_str(self.memory.get_unchecked(), path_len)
-                .unwrap()
-        };
-
-        let out = BuildInfo::new(path, name)
-            .build_edition(Edition::from_u32(edition).unwrap_or_default())
-            .build_crate_type(CrateType::from_u32(crate_ty).unwrap_or_default())
-            .build(&self.env, DependencyType::Normal)
-            .unwrap();
-
-        eprintln!("Build {}", out.out.display());
 
         self.deps.add_artifact(out)
     }

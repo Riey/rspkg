@@ -140,8 +140,6 @@ impl BuildInfo {
                 .arg(self.crate_name().replace("-", "_"))
                 .arg("-L")
                 .arg(&out_dir)
-                .arg("-L")
-                .arg(&env.out_dir())
                 .arg("--out-dir")
                 .arg(out_dir)
                 .rustc_flags(self.edition())
