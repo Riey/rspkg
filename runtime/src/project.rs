@@ -34,6 +34,7 @@ impl Project {
                 "build_file" => Function::new_native_with_env(&store, manifest_env.clone(), ManifestWasmEnv::build_file),
                 "dependency_new" => Function::new_native_with_env(&store, manifest_env.clone(), ManifestWasmEnv::dependency_new),
                 "dependency_add_feature" => Function::new_native_with_env(&store, manifest_env.clone(), ManifestWasmEnv::dependency_add_feature),
+                "dependency_add_cfg" => Function::new_native_with_env(&store, manifest_env.clone(), ManifestWasmEnv::dependency_add_cfg),
             }
         };
 
@@ -95,6 +96,21 @@ impl ManifestWasmEnv {
         })
     }
 
+    pub fn dependency_add_cfg(
+        &self,
+        index: u32,
+        cfg: WasmPtr<u8, Array>,
+        cfg_len: u32,
+    ) {
+        let cfg = unsafe {
+            cfg
+                .get_utf8_str(self.memory.get_unchecked(), cfg_len)
+                .unwrap()
+        };
+
+        self.deps.add_cfg(index, cfg).unwrap();
+    }
+
     pub fn dependency_add_feature(
         &self,
         index: u32,
@@ -126,7 +142,7 @@ impl ManifestWasmEnv {
         };
 
         let out = BuildInfo::new(path, &dep.name)
-            .build_features(dep.features.iter())
+            .build_flags(dep.cfgs.iter().map(|c| format!("--cfg={}", c)))
             .build_edition(Edition::from_u32(edition).unwrap_or_default())
             .build_crate_type(CrateType::from_u32(crate_ty).unwrap_or_default())
             .build(&self.env, DependencyType::Normal)

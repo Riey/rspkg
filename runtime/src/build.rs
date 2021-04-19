@@ -1,4 +1,3 @@
-use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -180,13 +179,9 @@ impl BuildInfo {
         self
     }
 
-    pub fn build_feature(self, feature: impl Display) -> Self {
-        self.build_flag(format!("--cfg=feature=\"{}\"", feature))
-    }
-
-    pub fn build_features<S: Display>(mut self, features: impl Iterator<Item = S>) -> Self {
-        for feature in features {
-            self = self.build_feature(feature);
+    pub fn build_flags<S: Into<String>>(mut self, flags: impl Iterator<Item = S>) -> Self {
+        for flag in flags {
+            self.flags.push(flag.into());
         }
         self
     }

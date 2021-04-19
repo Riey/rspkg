@@ -18,6 +18,7 @@ pub mod ffi {
     extern "C" {
         pub fn dependency_new(name: *const u8, name_len: usize, ty: DependencyType) -> Dependency;
         pub fn dependency_add_feature(index: Dependency, feature: *const u8, feature_len: usize);
+        pub fn dependency_add_cfg(index: Dependency, cfg: *const u8, cfg_len: usize);
         pub fn dependency_build(
             index: Dependency,
             root_path: *const u8,
@@ -50,6 +51,13 @@ macro_rules! nostd_template {
 #[inline(always)]
 pub fn dependency_new(name: &str, ty: DependencyType) -> Dependency {
     unsafe { ffi::dependency_new(name.as_ptr(), name.len(), ty) }
+}
+
+#[inline(always)]
+pub fn dependency_add_cfg(index: Dependency, cfg: &str) {
+    unsafe {
+        ffi::dependency_add_cfg(index, cfg.as_ptr(), cfg.len());
+    }
 }
 
 #[inline(always)]
