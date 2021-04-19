@@ -16,6 +16,8 @@ pub mod ffi {
     pub struct Artifact(u32);
 
     extern "C" {
+        // wasm `trap`
+        pub fn unreachable() -> !;
         pub fn dependency_new(name: *const u8, name_len: usize, ty: DependencyType) -> Dependency;
         pub fn dependency_add_feature(index: Dependency, feature: *const u8, feature_len: usize);
         pub fn dependency_add_cfg(index: Dependency, cfg: *const u8, cfg_len: usize);
@@ -40,12 +42,14 @@ pub mod ffi {
 
 #[macro_export]
 macro_rules! nostd_template {
-	() => {
+    () => {
         #[panic_handler]
         fn panic(_panic: &::core::panic::PanicInfo<'_>) -> ! {
-            loop {}
+            unsafe {
+                ::core::arch::wasm32::unreachable()   
+            }
         }
-	};
+    };
 }
 
 #[inline(always)]

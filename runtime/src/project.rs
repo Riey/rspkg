@@ -96,15 +96,9 @@ impl ManifestWasmEnv {
         })
     }
 
-    pub fn dependency_add_cfg(
-        &self,
-        index: u32,
-        cfg: WasmPtr<u8, Array>,
-        cfg_len: u32,
-    ) {
+    pub fn dependency_add_cfg(&self, index: u32, cfg: WasmPtr<u8, Array>, cfg_len: u32) {
         let cfg = unsafe {
-            cfg
-                .get_utf8_str(self.memory.get_unchecked(), cfg_len)
+            cfg.get_utf8_str(self.memory.get_unchecked(), cfg_len)
                 .unwrap()
         };
 
