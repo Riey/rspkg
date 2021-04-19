@@ -1,11 +1,8 @@
 #![no_std]
-use core::panic::PanicInfo;
-use rspkg::{build_file, Artifact, CrateType, Edition};
 
-#[panic_handler]
-fn panic(_panic: &PanicInfo<'_>) -> ! {
-    loop {}
-}
+rspkg::nostd_template!();
+
+use rspkg::{build_file, Artifact, CrateType, Edition};
 
 #[no_mangle]
 pub extern "C" fn build() -> Artifact {

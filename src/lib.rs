@@ -37,6 +37,16 @@ pub mod ffi {
     }
 }
 
+#[macro_export]
+macro_rules! nostd_template {
+	() => {
+        #[panic_handler]
+        fn panic(_panic: &::core::panic::PanicInfo<'_>) -> ! {
+            loop {}
+        }
+	};
+}
+
 #[inline(always)]
 pub fn dependency_new(name: &str, ty: DependencyType) -> Dependency {
     unsafe { ffi::dependency_new(name.as_ptr(), name.len(), ty) }
