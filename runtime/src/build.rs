@@ -133,31 +133,29 @@ impl BuildInfo {
 
         eprintln!("{} out: {}", self.crate_name(), out.display());
 
-        if !out.exists() {
-            let mut cmd = Command::new("rustc");
-            cmd.arg(self.root_file())
-                .arg("--crate-name")
-                .arg(self.crate_name().replace("-", "_"))
-                .arg("-L")
-                .arg(&out_dir)
-                .arg("--out-dir")
-                .arg(out_dir)
-                .rustc_flags(self.edition())
-                .rustc_flags(self.crate_type())
-                .rustc_flags(env.profile());
+        let mut cmd = Command::new("rustc");
+        cmd.arg(self.root_file())
+            .arg("--crate-name")
+            .arg(self.crate_name().replace("-", "_"))
+            .arg("-L")
+            .arg(&out_dir)
+            .arg("--out-dir")
+            .arg(out_dir)
+            .rustc_flags(self.edition())
+            .rustc_flags(self.crate_type())
+            .rustc_flags(env.profile());
 
-            if let Some(target) = env.get_target(target) {
-                cmd.arg("--target").arg(target);
-            }
-
-            for flag in self.flags.iter() {
-                cmd.arg(flag);
-            }
-
-            eprintln!("RUN: {:?}", cmd);
-
-            cmd.spawn()?.wait()?.check("rustc")?;
+        if let Some(target) = env.get_target(target) {
+            cmd.arg("--target").arg(target);
         }
+
+        for flag in self.flags.iter() {
+            cmd.arg(flag);
+        }
+
+        eprintln!("RUN: {:?}", cmd);
+
+        cmd.spawn()?.wait()?.check("rustc")?;
 
         Ok(BuildArtifacts { out })
     }
