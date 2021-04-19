@@ -27,7 +27,6 @@ fn main() -> Result<()> {
     let manifest_env = ManifestWasmEnv::new(build_env, deps.clone(), Arc::new(rspkg.out));
 
     let manifest = Project::new("root", manifest_env, arg.into())?;
-    manifest.dependencies()?;
     let manifest_out = deps.get_artifact(manifest.build(DependencyType::Normal)?)?;
 
     println!("Built out: {}", manifest_out.out.display());

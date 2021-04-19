@@ -184,7 +184,7 @@ impl BuildInfo {
         self.build_flag(format!("--cfg=feature=\"{}\"", feature))
     }
 
-    pub fn build_features(mut self, features: &[&str]) -> Self {
+    pub fn build_features<S: Display>(mut self, features: impl Iterator<Item = S>) -> Self {
         for feature in features {
             self = self.build_feature(feature);
         }

@@ -10,6 +10,7 @@ pub enum Error {
     ArtifactNotFound(u32),
     CommandError(String, ExitStatus),
     IoError(io::Error),
+    #[cfg(feature = "fetch")]
     SerdeError(serde_json::Error),
     #[cfg(feature = "fetch")]
     FetchError(reqwest::Error),
@@ -33,8 +34,9 @@ impl fmt::Display for Error {
             Error::CommandError(command_name, status) => {
                 write!(f, "Command {} run error: {}", command_name, status)
             }
-            Error::SerdeError(error) => write!(f, "Serde error: {}", error),
             Error::IoError(error) => write!(f, "IO error: {}", error),
+            #[cfg(feature = "fetch")]
+            Error::SerdeError(error) => write!(f, "Serde error: {}", error),
             #[cfg(feature = "fetch")]
             Error::FetchError(error) => write!(f, "crates.io error: {}", error),
         }
@@ -47,6 +49,7 @@ impl From<io::Error> for Error {
     }
 }
 
+#[cfg(feature = "fetch")]
 impl From<serde_json::Error> for Error {
     fn from(error: serde_json::Error) -> Self {
         Error::SerdeError(error)
