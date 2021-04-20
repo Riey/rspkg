@@ -1,7 +1,3 @@
-#![no_std]
-
-rspkg::nostd_template!();
-
 use rspkg::{Artifact, CrateType, Dependency, DependencyType, Edition};
 
 #[no_mangle]

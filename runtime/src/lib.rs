@@ -10,7 +10,7 @@ pub use crate::build::{BuildArtifacts, BuildEnvironment, BuildInfo, Profile};
 pub use crate::denpendency::DependencyStore;
 pub use crate::error::{Error, Result};
 #[cfg(feature = "fetch")]
-pub use crate::fetch::CratesIoRegistry;
+pub use crate::fetch::FetchClient;
 pub use crate::project::{ManifestWasmEnv, Project};
 pub use crate::rustc_flags::RustcFlags;
 pub use rspkg_shared::*;

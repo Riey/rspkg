@@ -30,16 +30,6 @@ pub mod ffi {
     }
 }
 
-#[macro_export]
-macro_rules! nostd_template {
-    () => {
-        #[panic_handler]
-        fn panic(_panic: &::core::panic::PanicInfo<'_>) -> ! {
-            unsafe { ::core::arch::wasm32::unreachable() }
-        }
-    };
-}
-
 impl Dependency {
     #[inline(always)]
     pub fn new(name: &str, ty: DependencyType) -> Self {
