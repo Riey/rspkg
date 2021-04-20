@@ -5,11 +5,11 @@ use std::{io::Write, path::PathBuf};
 
 use crate::{CheckResult, Result};
 
-pub struct CratesIoRegistry {
+pub struct FetchClient {
     client: Client,
 }
 
-impl CratesIoRegistry {
+impl FetchClient {
     pub fn new() -> Result<Self> {
         Ok(Self {
             client: ClientBuilder::new()

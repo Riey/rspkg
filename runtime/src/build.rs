@@ -131,8 +131,6 @@ impl BuildInfo {
 
         let out = out_dir.join(self.out_file_name(env, target));
 
-        eprintln!("{} out: {}", self.crate_name(), out.display());
-
         let mut cmd = Command::new("rustc");
         cmd.arg(self.root_file())
             .arg("--crate-name")

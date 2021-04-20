@@ -14,7 +14,7 @@ pub struct DependencyInfo {
     pub name: String,
     pub ty: DependencyType,
     pub no_default_features: bool,
-    pub cfgs: HashSet<String>,
+    pub flags: HashSet<String>,
 }
 
 impl DependencyInfo {
@@ -23,7 +23,7 @@ impl DependencyInfo {
         debug_assert_eq!(self.ty, other.ty);
 
         self.no_default_features |= other.no_default_features;
-        self.cfgs.extend(other.cfgs.iter().cloned());
+        self.flags.extend(other.flags.iter().cloned());
     }
 }
 
@@ -68,16 +68,18 @@ impl DependencyStore {
         index
     }
 
-    pub fn add_cfg(&self, index: u32, cfg: impl Into<String>) -> Result<()> {
+    pub fn add_flag(&self, index: u32, flag: impl Into<String>) -> Result<()> {
         let mut dep = self.get_mut_dependency(index)?;
-        dep.cfgs.insert(cfg.into());
+        dep.flags.insert(flag.into());
         Ok(())
     }
 
+    pub fn add_cfg(&self, index: u32, cfg: &str) -> Result<()> {
+        self.add_flag(index, format!("--cfg={}", cfg))
+    }
+
     pub fn add_feature(&self, index: u32, feature: &str) -> Result<()> {
-        let mut dep = self.get_mut_dependency(index)?;
-        dep.cfgs.insert(format!("feature='{}'", feature));
-        Ok(())
+        self.add_flag(index, format!("--cfg=feature='{}'", feature))
     }
 
     pub fn get_mut_dependency(&self, index: u32) -> Result<RefMut<u32, DependencyInfo>> {

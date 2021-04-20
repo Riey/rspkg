@@ -21,6 +21,8 @@ impl Project {
         let store = Store::default();
         let manifest_build = BuildInfo::new(manifest, manifest_name)
             .build_crate_type(CrateType::Cdylib)
+            .build_flag("-Cpanic=abort")
+            .build_flag("-Clto")
             .build_flag(format!(
                 "--extern=rspkg={}",
                 manifest_env.rspkg_lib_path.display()
@@ -96,6 +98,15 @@ impl ManifestWasmEnv {
         })
     }
 
+    pub fn dependency_add_flag(&self, index: u32, flag: WasmPtr<u8, Array>, flag_len: u32) {
+        let flag = unsafe {
+            flag.get_utf8_str(self.memory.get_unchecked(), flag_len)
+                .unwrap()
+        };
+
+        self.deps.add_flag(index, flag).unwrap();
+    }
+
     pub fn dependency_add_cfg(&self, index: u32, cfg: WasmPtr<u8, Array>, cfg_len: u32) {
         let cfg = unsafe {
             cfg.get_utf8_str(self.memory.get_unchecked(), cfg_len)
@@ -136,7 +147,7 @@ impl ManifestWasmEnv {
         };
 
         let out = BuildInfo::new(path, &dep.name)
-            .build_flags(dep.cfgs.iter().map(|c| format!("--cfg={}", c)))
+            .build_flags(dep.flags.iter())
             .build_edition(Edition::from_u32(edition).unwrap_or_default())
             .build_crate_type(CrateType::from_u32(crate_ty).unwrap_or_default())
             .build(&self.env, DependencyType::Normal)

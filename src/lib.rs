@@ -18,6 +18,7 @@ pub mod ffi {
     extern "C" {
         pub fn dependency_new(name: *const u8, name_len: usize, ty: DependencyType) -> Dependency;
         pub fn dependency_add_feature(index: Dependency, feature: *const u8, feature_len: usize);
+        pub fn dependency_add_flag(index: Dependency, flag: *const u8, flag_len: usize);
         pub fn dependency_add_cfg(index: Dependency, cfg: *const u8, cfg_len: usize);
         pub fn dependency_build(
             index: Dependency,
@@ -49,6 +50,13 @@ impl Dependency {
     pub fn add_cfg(self, cfg: &str) {
         unsafe {
             ffi::dependency_add_cfg(self, cfg.as_ptr(), cfg.len());
+        }
+    }
+
+    #[inline(always)]
+    pub fn add_flag(self, flag: &str) {
+        unsafe {
+            ffi::dependency_add_flag(self, flag.as_ptr(), flag.len());
         }
     }
 
