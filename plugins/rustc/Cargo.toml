@@ -1,9 +1,8 @@
 [package]
-name = "rspkg-shared"
+name = "rspkg-plugin-rustc"
 version = "0.1.0"
 authors = ["Riey <creeper844@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-arrayvec = "0.7.0"
-
+rspkg-runtime-ffi = { path = "../../runtime-ffi" }

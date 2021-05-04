@@ -1,16 +1,7 @@
-[package]
-name = "rspkg"
-version = "0.1.0"
-authors = ["Riey <creeper844@gmail.com>"]
-edition = "2018"
-
-[dependencies]
-rspkg-shared = { path = "./shared" }
-
 [workspace]
 members = [
-    ".",
-    "./shared",
+    "./plugins/*",
     "./runtime",
+    "./runtime-ffi",
 ]
 

@@ -1,4 +1,4 @@
-use rspkg::{Artifact, CrateType, Dependency, DependencyType, Edition};
+use rspkg_plugin_rustc::{CrateType, Dependency, DependencyType, Edition};
 
 #[no_mangle]
 pub extern "C" fn build() -> Artifact {

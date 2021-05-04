@@ -1,19 +1,12 @@
-mod build;
-mod denpendency;
 mod error;
 #[cfg(feature = "fetch")]
 mod fetch;
-mod project;
-mod rustc_flags;
+mod manifest;
 
-pub use crate::build::{BuildArtifacts, BuildEnvironment, BuildInfo, Profile};
-pub use crate::denpendency::DependencyStore;
 pub use crate::error::{Error, Result};
 #[cfg(feature = "fetch")]
 pub use crate::fetch::FetchClient;
-pub use crate::project::{ManifestWasmEnv, Project};
-pub use crate::rustc_flags::RustcFlags;
-pub use rspkg_shared::*;
+pub use crate::manifest::Manifest;
 
 use std::process::ExitStatus;
 
