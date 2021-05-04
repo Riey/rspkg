@@ -1,17 +1,15 @@
 let
-  moz_overlay = import (builtins.fetchTarball https://github.com/mozilla/nixpkgs-mozilla/archive/master.tar.gz);
-  pkgs = import <nixpkgs> { overlays = [ moz_overlay ]; };
-  rust = (pkgs.rustChannelOf { channel = "stable"; }).rust
-  .override {
+  rust-overlay = import (builtins.fetchTarball "https://github.com/oxalica/rust-overlay/archive/master.tar.gz");
+  pkgs = import <nixpkgs> { overlays = [ rust-overlay ]; };
+  rust = pkgs.rust-bin.stable.latest.default.override {
+    extensions = [ "rust-src" ];
     targets = [
       "x86_64-unknown-linux-gnu"
       "wasm32-unknown-unknown"
     ];
-    extensions = ["rust-src"];
   };
 in
-with pkgs;
-mkShell {
+pkgs.mkShell {
   name = "rspkg-shell";
 
   buildInputs = [
