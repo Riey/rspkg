@@ -2,11 +2,13 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::io;
 use std::process::ExitStatus;
+use wasmer_wasi::WasiStateCreationError;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub enum Error {
     CommandError(String, ExitStatus),
+    WasiError(WasiStateCreationError),
     IoError(io::Error),
 }
 
@@ -22,6 +24,7 @@ impl fmt::Display for Error {
             Error::CommandError(command_name, status) => {
                 write!(f, "Command {} run error: {}", command_name, status)
             }
+            Error::WasiError(error) => write!(f, "WASI creation error: {}", error),
             Error::IoError(error) => write!(f, "IO error: {}", error),
         }
     }
@@ -30,6 +33,12 @@ impl fmt::Display for Error {
 impl From<io::Error> for Error {
     fn from(error: io::Error) -> Self {
         Error::IoError(error)
+    }
+}
+
+impl From<WasiStateCreationError> for Error {
+    fn from(error: WasiStateCreationError) -> Self {
+        Error::WasiError(error)
     }
 }
 

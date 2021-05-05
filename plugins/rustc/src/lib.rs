@@ -94,23 +94,28 @@ impl BuildFlags {
 
     pub fn build(&mut self) -> Result<PathBuf, ()> {
         let crate_name = self.crate_name.replace("-", "_");
-        let edition = self.edition;
-        let crate_type = self.crate_type;
 
-        self.extra_flag("--edition")
-            .extra_flag(match edition {
+        self.flags.push("--edition".into());
+        self.flags.push(
+            match self.edition {
                 Edition::E2015 => "2015",
                 Edition::E2018 => "2018",
-            })
-            .extra_flag("--crate-type")
-            .extra_flag(match crate_type {
+            }
+            .into(),
+        );
+        self.flags.push("--crate-type".into());
+        self.flags.push(
+            match self.crate_type {
                 CrateType::Bin => "bin",
                 CrateType::Cdylib => "cdylib",
                 CrateType::Lib => "lib",
                 CrateType::ProcMacro => "proc-macro",
-            })
-            .extra_flag("--crate-name")
-            .extra_flag(crate_name.as_str());
+            }
+            .into(),
+        );
+        self.flags.push("--crate-name".into());
+        self.flags.push(crate_name.as_str().into());
+        self.flags.push(self.root_file.to_str().unwrap().into());
 
         if spawn_command("rustc".into(), &self.flags) {
             let out_file_path = match self.crate_type {

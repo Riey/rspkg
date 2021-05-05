@@ -25,7 +25,7 @@ pub fn build_manifest_lib(
         .arg(&out_dir)
         .arg("--crate-name")
         .arg(crate_name)
-        .arg("--crate-type=rlib")
+        .arg("--crate-type=lib")
         .arg("--edition=2018")
         .arg("-Clto")
         .arg("-Copt-level=3")
@@ -57,8 +57,9 @@ pub fn build_manifest_bin(
     cmd.arg("--out-dir")
         .arg(&out_dir)
         .arg("--edition=2018")
-        .arg("--crate-name=manifest")
-        .arg("--crate-type=rlib")
+        .arg("--crate-name")
+        .arg(crate_name)
+        .arg("--crate-type=cdylib")
         .arg("-Clto")
         .arg("-Copt-level=3")
         .arg("--target=wasm32-wasi")
@@ -83,7 +84,16 @@ pub struct Manifest {
 
 impl Manifest {
     pub fn new(manifest_bin: &Path) -> Result<Self> {
-        let mut wasi = WasiState::new("manifest").finalize().unwrap();
+        let mut wasi = WasiState::new("manifest")
+            .preopen(|p| p.directory(".").read(true))?
+            .preopen(|p| {
+                p.directory("rspkg-result")
+                    .read(true)
+                    .write(true)
+                    .create(true)
+            })?
+            .finalize()
+            .unwrap();
         let store = Store::default();
 
         let module = Module::from_file(&store, manifest_bin).expect("Read wasm module");
