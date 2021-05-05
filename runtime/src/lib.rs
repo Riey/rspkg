@@ -1,12 +1,12 @@
 mod error;
-#[cfg(feature = "fetch")]
-mod fetch;
 mod manifest;
 
 pub use crate::error::{Error, Result};
-#[cfg(feature = "fetch")]
-pub use crate::fetch::FetchClient;
-pub use crate::manifest::Manifest;
+pub use crate::manifest::{
+    Manifest,
+    build_manifest_bin,
+    build_manifest_lib,
+};
 
 use std::process::ExitStatus;
 

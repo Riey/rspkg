@@ -7,31 +7,86 @@ use crate::{CheckResult, Result};
 use wasm_env::ManifestWasmEnv;
 use wasmer::{
     imports, Array, ChainableNamedResolver, Function, ImportObject, Instance, LazyInit, Memory,
-    Module, Store, WasmPtr, WasmerEnv,
+    Module, NamedResolverChain, Store, WasmPtr, WasmerEnv,
 };
-use wasmer_wasi::WasiState;
+use wasmer_wasi::{WasiEnv, WasiState};
 
-fn build_manifest_lib(crate_name: &str)
+pub fn build_manifest_lib(
+    crate_name: &str,
+    root_file: &Path,
+    externs: &[&str],
+    out_dir: &Path,
+) -> Result<PathBuf> {
+    let out_path = out_dir.join(format!("lib{}.rlib", crate_name));
 
-pub struct Manifest {}
+    let mut cmd = Command::new("rustc");
+
+    cmd.arg("--out-dir")
+        .arg(&out_dir)
+        .arg("--crate-name")
+        .arg(crate_name)
+        .arg("--crate-type=rlib")
+        .arg("--edition=2018")
+        .arg("-Clto")
+        .arg("-Copt-level=3")
+        .arg("--target=wasm32-wasi")
+        .arg("-L")
+        .arg(out_dir);
+
+    for name in externs.iter() {
+        cmd.arg("--extern").arg(name);
+    }
+
+    dbg!(&cmd);
+
+    cmd.arg(root_file).spawn()?.wait()?.check("rustc")?;
+
+    Ok(out_path)
+}
+
+pub fn build_manifest_bin(
+    crate_name: &str,
+    root_file: &Path,
+    externs: &[&str],
+    out_dir: &Path,
+) -> Result<PathBuf> {
+    let out_path = out_dir.join(format!("{}.wasm", crate_name));
+
+    let mut cmd = Command::new("rustc");
+
+    cmd.arg("--out-dir")
+        .arg(&out_dir)
+        .arg("--edition=2018")
+        .arg("--crate-name=manifest")
+        .arg("--crate-type=rlib")
+        .arg("-Clto")
+        .arg("-Copt-level=3")
+        .arg("--target=wasm32-wasi")
+        .arg("-L")
+        .arg(out_dir);
+
+    for name in externs.iter() {
+        cmd.arg("--extern").arg(name);
+    }
+
+    dbg!(&cmd);
+
+    cmd.arg(root_file).spawn()?.wait()?.check("rustc")?;
+
+    Ok(out_path)
+}
+
+pub struct Manifest {
+    module: Module,
+    import_objects: NamedResolverChain<ImportObject, ImportObject>,
+}
 
 impl Manifest {
-    pub fn new(manifest_file: &Path, out_dir: PathBuf) -> Result<Self> {
-        let wasi = WasiState::new("manifest").finalize().unwrap();
+    pub fn new(manifest_bin: &Path) -> Result<Self> {
+        let mut wasi = WasiState::new("manifest").finalize().unwrap();
         let store = Store::default();
-        Command::new("rustc")
-            .arg("--out-dir")
-            .arg(&out_dir)
-            .arg("--crate-name=manifest")
-            .arg("-Clto")
-            .arg("-Copt-level=3")
-            .arg("--target=wasm32-wasi")
-            .spawn()?
-            .wait()?
-            .check("rustc")?;
 
-        let module =
-            Module::from_file(&store, out_dir.join("manifest.wasm")).expect("Read wasm module");
+        let module = Module::from_file(&store, manifest_bin).expect("Read wasm module");
         let manifest_env = ManifestWasmEnv::default();
         let import_objects = imports! {
             "env" => {
@@ -40,7 +95,23 @@ impl Manifest {
             }
         };
 
-        Ok(Self {})
+        Ok(Self {
+            import_objects: import_objects.chain_front(
+                wasi.import_object(&module)
+                    .expect("Create wasi import object"),
+            ),
+            module,
+        })
+    }
+
+    pub fn build(&self) {
+        let instance =
+            Instance::new(&self.module, &self.import_objects).expect("Make manifest instance");
+        let build_func = instance
+            .exports
+            .get_native_function::<(), ()>("build")
+            .expect("Get build function");
+        build_func.call().expect("Call build function")
     }
 }
 
