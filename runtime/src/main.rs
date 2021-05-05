@@ -1,35 +1,31 @@
-use rspkg_runtime::{
-    BuildEnvironment, BuildInfo, DependencyStore, DependencyType, ManifestWasmEnv, Profile,
-    Project, Result,
-};
-use std::path::PathBuf;
-use std::{env, sync::Arc};
+use rspkg_runtime::{build_manifest_bin, build_manifest_lib, Manifest, Result};
+use std::env;
+use std::path::{Path, PathBuf};
 
 fn main() -> Result<()> {
     let arg = env::args().nth(1).expect("No argument");
     let tmp_dir = PathBuf::from("rspkg-result");
 
-    let build_env = Arc::new(BuildEnvironment::new(
-        Profile::Release,
-        tmp_dir.clone(),
-        None,
-        None,
-    ));
-    let rspkg_shared = BuildInfo::new("./shared/src/lib.rs", "rspkg-shared")
-        .build(&build_env, DependencyType::Manifest)?;
-    let rspkg = BuildInfo::new("./src/lib.rs", "rspkg")
-        .build_flag(format!(
-            "--extern=rspkg_shared={}",
-            rspkg_shared.out.display()
-        ))
-        .build(&build_env, DependencyType::Manifest)?;
-    let deps = Arc::new(DependencyStore::default());
-    let manifest_env = ManifestWasmEnv::new(build_env, deps.clone(), Arc::new(rspkg.out));
-
-    let manifest = Project::new("root", manifest_env, arg.into())?;
-    let manifest_out = deps.get_artifact(manifest.build(DependencyType::Normal)?)?;
-
-    println!("Built out: {}", manifest_out.out.display());
+    build_manifest_lib(
+        "rspkg_runtime_ffi",
+        Path::new("runtime-ffi/src/lib.rs"),
+        &[],
+        &tmp_dir,
+    )?;
+    build_manifest_lib(
+        "rspkg_plugin_rustc",
+        Path::new("plugins/rustc/src/lib.rs"),
+        &["rspkg_runtime_ffi"],
+        &tmp_dir,
+    )?;
+    let manifest_bin = build_manifest_bin(
+        "root",
+        Path::new("manifest.rs"),
+        &["rspkg_plugin_rustc"],
+        &tmp_dir,
+    )?;
+    let manifest = Manifest::new(&manifest_bin)?;
+    manifest.build();
 
     Ok(())
 }
