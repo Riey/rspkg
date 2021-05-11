@@ -1,15 +1,13 @@
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
     process::Command,
+    rc::Rc,
 };
 
-use crate::{CheckResult, Result};
-use wasm_env::ManifestWasmEnv;
-use wasmer::{
-    imports, Array, ChainableNamedResolver, Function, ImportObject, Instance, LazyInit, Memory,
-    Module, NamedResolverChain, Store, WasmPtr, WasmerEnv,
-};
-use wasmer_wasi::{WasiEnv, WasiState};
+use crate::{CheckResult, Plugin, Result};
+use wasmer::{ChainableNamedResolver, ImportObject, Instance, Module, NamedResolverChain, Store};
+use wasmer_wasi::WasiState;
 
 pub fn build_manifest_lib(
     crate_name: &str,
@@ -83,7 +81,7 @@ pub struct Manifest {
 }
 
 impl Manifest {
-    pub fn new(manifest_bin: &Path) -> Result<Self> {
+    pub fn new(manifest_bin: &Path, plugins: &HashMap<String, Rc<dyn Plugin>>) -> Result<Self> {
         let mut wasi = WasiState::new("manifest")
             .preopen(|p| p.directory(".").read(true))?
             .preopen(|p| {
@@ -97,13 +95,11 @@ impl Manifest {
         let store = Store::default();
 
         let module = Module::from_file(&store, manifest_bin).expect("Read wasm module");
-        let manifest_env = ManifestWasmEnv::default();
-        let import_objects = imports! {
-            "env" => {
-                "alloc_host_string" => Function::new_native_with_env(&store, manifest_env.clone(), ManifestWasmEnv::alloc_host_string),
-                "spawn_command" => Function::new_native_with_env(&store, manifest_env, ManifestWasmEnv::spawn_command),
-            }
-        };
+        let mut import_objects = ImportObject::new();
+
+        for (name, plugin) in plugins.iter() {
+            import_objects.register(name, plugin.exports(&store));
+        }
 
         Ok(Self {
             import_objects: import_objects.chain_front(
@@ -122,54 +118,5 @@ impl Manifest {
             .get_native_function::<(), ()>("build")
             .expect("Get build function");
         build_func.call().expect("Call build function")
-    }
-}
-
-mod wasm_env {
-    use std::sync::atomic::{AtomicU32, Ordering::SeqCst};
-    use std::sync::Arc;
-
-    use dashmap::DashMap;
-    use wasmer::{Array, LazyInit, Memory, WasmPtr, WasmerEnv};
-
-    use crate::CheckResult;
-
-    #[derive(Clone, Default, WasmerEnv)]
-    pub struct ManifestWasmEnv {
-        #[wasmer(export)]
-        memory: LazyInit<Memory>,
-        next: Arc<AtomicU32>,
-        string_store: Arc<DashMap<u32, String>>,
-    }
-
-    impl ManifestWasmEnv {
-        pub fn alloc_host_string(&self, text: WasmPtr<u8, Array>, text_len: u32) -> u32 {
-            let text = unsafe {
-                text.get_utf8_str(self.memory.get_unchecked(), text_len)
-                    .unwrap()
-            };
-
-            let next = self.next.fetch_add(1, SeqCst);
-
-            self.string_store.insert(next, text.into());
-            next
-        }
-
-        fn spawn_command_impl(&self, name: u32, args: &[std::cell::Cell<u32>]) -> Option<()> {
-            let mut command = std::process::Command::new(self.string_store.get(&name)?.as_str());
-
-            for arg in args {
-                command.arg(self.string_store.get(&arg.get())?.as_str());
-            }
-
-            command.spawn().ok()?.wait().ok()?.check("").ok()?;
-
-            Some(())
-        }
-
-        pub fn spawn_command(&self, name: u32, args: WasmPtr<u32, Array>, args_len: u32) -> u32 {
-            let args = args.deref(self.memory_ref().unwrap(), 0, args_len).unwrap();
-            self.spawn_command_impl(name, args).is_some() as u32
-        }
     }
 }

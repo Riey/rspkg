@@ -986,8 +986,21 @@ dependencies = [
 name = "rspkg-plugin-rustc"
 version = "0.1.0"
 dependencies = [
- "rspkg-runtime-ffi",
+ "rspkg-plugin-rustc-shared",
+ "rspkg-runtime",
+ "wasmer",
 ]
+
+[[package]]
+name = "rspkg-plugin-rustc-ffi"
+version = "0.1.0"
+dependencies = [
+ "rspkg-plugin-rustc-shared",
+]
+
+[[package]]
+name = "rspkg-plugin-rustc-shared"
+version = "0.1.0"
 
 [[package]]
 name = "rspkg-runtime"
@@ -1000,10 +1013,6 @@ dependencies = [
  "wasmer",
  "wasmer-wasi",
 ]
-
-[[package]]
-name = "rspkg-runtime-ffi"
-version = "0.1.0"
 
 [[package]]
 name = "rustc-demangle"

@@ -1,24 +1,89 @@
-use rspkg_runtime_ffi::{spawn_command, HostString};
-use std::path::{Path, PathBuf};
+use rspkg_plugin_rustc_shared::{CrateType, Edition, Profile};
+use rspkg_runtime::{CheckResult, Plugin};
+use std::{
+    path::{Path, PathBuf},
+    process::Command,
+};
+use wasmer::{Array, Function, LazyInit, Memory, WasmPtr, WasmerEnv};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum CrateType {
-    Bin,
-    Lib,
-    Cdylib,
-    ProcMacro,
+#[derive(Clone, Default, Debug, WasmerEnv)]
+struct RustcEnv {
+    #[wasmer(export)]
+    memory: LazyInit<Memory>,
+    out_dir: PathBuf,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Edition {
-    E2015,
-    E2018,
+impl RustcEnv {
+    pub fn new(out_dir: PathBuf) -> Self {
+        Self {
+            memory: LazyInit::default(),
+            out_dir,
+        }
+    }
+
+    fn build_impl(
+        &self,
+        root_file: &str,
+        crate_type: u32,
+        edition: u32,
+        profile: u32,
+    ) -> Option<()> {
+        let crate_type = CrateType::from_u32(crate_type)?;
+        let edition = Edition::from_u32(edition)?;
+        let profile = Profile::from_u32(profile)?;
+
+        Command::new("rustc")
+            .arg("--out-dir")
+            .arg(&self.out_dir)
+            .arg(root_file)
+            .spawn()
+            .ok()?
+            .wait()
+            .ok()?
+            .check("rustc")
+            .ok()?;
+
+        Some(())
+    }
+
+    fn build(
+        &self,
+        root_file: WasmPtr<u8, Array>,
+        root_file_len: u32,
+        crate_type: u32,
+        edition: u32,
+        profile: Profile,
+    ) -> u32 {
+        let root_file = unsafe {
+            root_file
+                .get_utf8_str(&self.memory, root_file_len)
+                .expect("Read root file path")
+        };
+
+        self.build_impl(root_file, crate_type, edition, profile)
+            .map_or(1, |_| 0)
+    }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Profile {
-    Dev,
-    Release,
+pub struct RustcPlugin {
+    pub out_dir: PathBuf,
+}
+
+impl Plugin for RustcPlugin {
+    fn name(&self) -> &str {
+        "rustc"
+    }
+
+    fn exports(&self, store: &wasmer::Store) -> wasmer::Exports {
+        let mut ret = wasmer::Exports::new();
+
+        ret.insert(
+            "build",
+            Function::new_native_with_env(store, RustcEnv::default(), RustcEnv::build),
+        );
+
+        ret
+    }
 }
 
 #[derive(Clone)]
