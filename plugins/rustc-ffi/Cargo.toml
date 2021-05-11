@@ -3,6 +3,3 @@ name = "rspkg-plugin-rustc-ffi"
 version = "0.1.0"
 authors = ["Riey <creeper844@gmail.com>"]
 edition = "2018"
-
-[dependencies]
-rspkg-plugin-rustc-shared = { path = "../rustc-shared" }

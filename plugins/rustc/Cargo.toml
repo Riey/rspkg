@@ -7,4 +7,3 @@ edition = "2018"
 [dependencies]
 wasmer = { version = "1", default-features = false }
 rspkg-runtime = { path = "../../runtime" }
-rspkg-plugin-rustc-shared = { path = "../rustc-shared" }

@@ -3,9 +3,10 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
     rc::Rc,
+    sync::Arc,
 };
 
-use crate::{CheckResult, Plugin, Result};
+use crate::{CheckResult, Interner, Plugin, Result};
 use wasmer::{ChainableNamedResolver, ImportObject, Instance, Module, NamedResolverChain, Store};
 use wasmer_wasi::WasiState;
 
@@ -81,7 +82,11 @@ pub struct Manifest {
 }
 
 impl Manifest {
-    pub fn new(manifest_bin: &Path, plugins: &HashMap<String, Rc<dyn Plugin>>) -> Result<Self> {
+    pub fn new(
+        manifest_bin: &Path,
+        interner: &Arc<Interner>,
+        plugins: &HashMap<String, Rc<dyn Plugin>>,
+    ) -> Result<Self> {
         let mut wasi = WasiState::new("manifest")
             .preopen(|p| p.directory(".").read(true))?
             .preopen(|p| {
@@ -98,7 +103,7 @@ impl Manifest {
         let mut import_objects = ImportObject::new();
 
         for (name, plugin) in plugins.iter() {
-            import_objects.register(name, plugin.exports(&store));
+            import_objects.register(name, plugin.exports(&store, interner));
         }
 
         Ok(Self {
