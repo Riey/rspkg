@@ -16,6 +16,7 @@ fetch = ["reqwest", "serde", "serde_json"]
 wasmer = { version = "1", default-features = false, features = ["default-singlepass", "default-jit"] }
 wasmer-wasi = "1"
 rspkg-plugin = { path = "../plugin" }
+rspkg-plugin-rustc = { path = "../plugins/rustc" }
 dashmap = "4.0.2"
 reqwest = { version = "0.11.3", default-features = false, features = ["rustls-tls", "blocking", "json"], optional = true }
 serde = { version = "1", features = ["derive"], optional = true }

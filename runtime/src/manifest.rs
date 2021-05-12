@@ -1,12 +1,11 @@
 use std::{
-    collections::HashMap,
     path::{Path, PathBuf},
     process::Command,
-    rc::Rc,
     sync::Arc,
 };
 
-use crate::{CheckResult, Interner, Plugin, Result};
+use crate::{CheckResult, Result};
+use rspkg_plugin::{Interner, Plugin};
 use wasmer::{ChainableNamedResolver, ImportObject, Instance, Module, NamedResolverChain, Store};
 use wasmer_wasi::WasiState;
 
@@ -85,7 +84,7 @@ impl Manifest {
     pub fn new(
         manifest_bin: &Path,
         interner: &Arc<Interner>,
-        plugins: &HashMap<String, Rc<dyn Plugin>>,
+        plugins: &Vec<Box<dyn Plugin>>,
     ) -> Result<Self> {
         let mut wasi = WasiState::new("manifest")
             .preopen(|p| p.directory(".").read(true))?
@@ -102,8 +101,10 @@ impl Manifest {
         let module = Module::from_file(&store, manifest_bin).expect("Read wasm module");
         let mut import_objects = ImportObject::new();
 
-        for (name, plugin) in plugins.iter() {
-            import_objects.register(name, plugin.exports(&store, interner));
+        for plugin in plugins.iter() {
+            import_objects
+                .register(plugin.name(), plugin.exports(&store, interner))
+                .expect("Plugin name is duplicated");
         }
 
         Ok(Self {

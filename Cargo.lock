@@ -1040,6 +1040,7 @@ dependencies = [
  "dashmap",
  "reqwest",
  "rspkg-plugin",
+ "rspkg-plugin-rustc",
  "serde",
  "serde_json",
  "wasmer",
