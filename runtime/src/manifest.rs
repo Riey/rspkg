@@ -102,9 +102,7 @@ impl Manifest {
         let mut import_objects = ImportObject::new();
 
         for plugin in plugins.iter() {
-            import_objects
-                .register(plugin.name(), plugin.exports(&store, interner))
-                .expect("Plugin name is duplicated");
+            import_objects.register(plugin.name(), plugin.exports(&store, interner));
         }
 
         Ok(Self {

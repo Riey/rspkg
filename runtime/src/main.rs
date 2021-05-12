@@ -1,4 +1,4 @@
-use rspkg_plugin::Interner;
+use rspkg_plugin::{Capacity, Interner};
 use rspkg_plugin_rustc::RustcPlugin;
 use rspkg_runtime::{build_manifest_bin, build_manifest_lib, Manifest, Result};
 use std::path::{Path, PathBuf};
@@ -7,7 +7,7 @@ use std::{env, sync::Arc};
 fn main() -> Result<()> {
     let arg = env::args().nth(1).expect("No argument");
     let tmp_dir = PathBuf::from("rspkg-result");
-    let interner = Arc::new(Interner::new());
+    let interner = Arc::new(Interner::with_capacity(Capacity::for_strings(1024)));
     let plugins = vec![Box::new(RustcPlugin {
         out_dir: tmp_dir.clone(),
     }) as Box<_>];
