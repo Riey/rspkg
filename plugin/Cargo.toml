@@ -1,9 +1,9 @@
 [package]
-name = "rspkg-plugin-rustc"
+name = "rspkg-plugin"
 version = "0.1.0"
 authors = ["Riey <creeper844@gmail.com>"]
 edition = "2018"
 
 [dependencies]
 wasmer = { version = "1", default-features = false }
-rspkg-plugin = { path = "../../plugin" }
+lasso = { version = "0.5.0", features = ["multi-threaded", "ahasher"] }

@@ -1014,10 +1014,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rspkg-plugin"
+version = "0.1.0"
+dependencies = [
+ "lasso",
+ "wasmer",
+]
+
+[[package]]
 name = "rspkg-plugin-rustc"
 version = "0.1.0"
 dependencies = [
- "rspkg-runtime",
+ "rspkg-plugin",
  "wasmer",
 ]
 
@@ -1030,8 +1038,8 @@ name = "rspkg-runtime"
 version = "0.1.0"
 dependencies = [
  "dashmap",
- "lasso",
  "reqwest",
+ "rspkg-plugin",
  "serde",
  "serde_json",
  "wasmer",

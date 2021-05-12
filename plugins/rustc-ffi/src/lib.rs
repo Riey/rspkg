@@ -133,8 +133,10 @@ impl BuildFlags {
         self.flags.push(crate_name.as_str().into());
         self.flags.push(self.root_file.to_str().unwrap().into());
 
-        unsafe {
-            ffi::build(self.flags.as_ptr(), self.flags.len());
+        let ret = unsafe { ffi::build(self.flags.as_ptr(), self.flags.len()) };
+
+        if ret != 0 {
+            panic!("build exit code: {}", ret);
         }
 
         let out_file_path = match self.crate_type {
@@ -171,7 +173,7 @@ mod ffi {
 
     #[link(wasm_import_module = "rustc")]
     extern "C" {
-        pub fn build(args: *const Key, args_len: usize);
+        pub fn build(args: *const Key, args_len: usize) -> i32;
 
         pub fn alloc_arg(arg: *const u8, arg_len: usize) -> Key;
     }

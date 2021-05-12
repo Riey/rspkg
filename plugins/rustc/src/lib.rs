@@ -1,4 +1,4 @@
-use rspkg_runtime::{CheckResult, Interner, Key, Plugin};
+use rspkg_plugin::{Interner, Key, Plugin};
 use std::{path::PathBuf, process::Command, sync::Arc};
 use wasmer::{Array, Function, LazyInit, Memory, WasmPtr, WasmerEnv};
 
@@ -26,7 +26,7 @@ impl RustcEnv {
         self.interner.get_or_intern(arg)
     }
 
-    fn build(&self, args: WasmPtr<u32, Array>, args_len: u32) {
+    fn build(&self, args: WasmPtr<u32, Array>, args_len: u32) -> i32 {
         let mut cmd = Command::new("rustc");
 
         let args = args
@@ -43,8 +43,8 @@ impl RustcEnv {
             .expect("Spawn rustc")
             .wait()
             .expect("Wait rustc")
-            .check("rustc")
-            .unwrap();
+            .code()
+            .unwrap_or(0)
     }
 }
 
@@ -81,3 +81,4 @@ impl Plugin for RustcPlugin {
         ret
     }
 }
+
